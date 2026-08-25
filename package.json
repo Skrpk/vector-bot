@@ -3,10 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "copy-celestial": "node scripts/copy-celestial.mjs",
+    "postinstall": "node scripts/copy-celestial.mjs",
+    "predev": "node scripts/copy-celestial.mjs",
     "dev": "next dev",
+    "prebuild": "node scripts/copy-celestial.mjs",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@twa-dev/sdk": "^8.0.2",
@@ -21,6 +27,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.3",
+    "prettier": "^3.9.6",
     "typescript": "^5"
   }
 }
