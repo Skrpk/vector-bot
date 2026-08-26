@@ -22,7 +22,10 @@ export interface Theme {
 
 /** Inputs to renderStarMap. */
 export interface RenderOptions {
-  /** The moment the sky is drawn for (UTC-aware Date). */
+  /**
+   * The absolute UTC instant the sky is drawn for. Callers must resolve the
+   * user's local wall-clock + timezone → UTC first (lib/time/localToUtc.ts).
+   */
   date: Date;
   /** Latitude in degrees, -90..90. */
   lat: number;

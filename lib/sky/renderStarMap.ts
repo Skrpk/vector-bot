@@ -9,6 +9,9 @@ const RENDER_TIMEOUT_MS = 15000;
  * Render the night sky for a given date + location into `container` using
  * d3-celestial, and resolve with the <canvas> it produced.
  *
+ * `opts.date` must be the **absolute UTC instant** to render (the caller resolves
+ * the user's local wall-clock + timezone → UTC; see lib/time/localToUtc.ts).
+ *
  * The signature takes a *container element* (not a caller-owned canvas):
  * d3-celestial creates and owns its own <canvas> inside the container. The caller
  * (composePoster) reads pixels off the returned canvas.
@@ -78,10 +81,17 @@ export function renderStarMap(
           // settles before we apply the dated view.
           setTimeout(() => {
             try {
-              // timezone is required so skyview takes the go()/redraw path
-              // (setPosition is a no-op when settimezone is false). The value
-              // itself doesn't affect sky geometry — that uses the absolute date.
-              celestial.skyview({ date, location: [lat, lng], timezone: 0 });
+              // `date` is the absolute UTC instant. d3-celestial computes
+              //   dtc = date − (timezone − localZone)  (localZone = the browser's
+              // own offset), so passing timezone = the browser offset makes that
+              // shift zero and renders exactly at `date`. A timezone is also
+              // required for skyview to take the go()/redraw path at all
+              // (setPosition is a no-op when settimezone is false).
+              celestial.skyview({
+                date,
+                location: [lat, lng],
+                timezone: -new Date().getTimezoneOffset(),
+              });
             } catch (err) {
               reject(err instanceof Error ? err : new Error(String(err)));
               return;
