@@ -15,21 +15,6 @@ const SKY_SIZE = 1000;
 const WATERMARK = '@your_channel';
 const POSTER_TITLE = 'THE NIGHT SKY';
 
-function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(date);
-}
-
-function fileDate(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
 export default function StarMapApp() {
   const posterRef = useRef<HTMLCanvasElement | null>(null);
   const skyRef = useRef<HTMLDivElement | null>(null);
@@ -39,7 +24,7 @@ export default function StarMapApp() {
   const [status, setStatus] = useState('Pick a date and place, then render the sky.');
   const [loading, setLoading] = useState(false);
   const [canDownload, setCanDownload] = useState(false);
-  const lastDateRef = useRef<Date | null>(null);
+  const fileStampRef = useRef<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -78,12 +63,12 @@ export default function StarMapApp() {
       composePoster(posterRef.current, {
         starMapCanvas,
         title: POSTER_TITLE,
-        subtitle: `${formatDate(payload.date)}\n${payload.label}`,
+        subtitle: `${payload.displayDate}\n${payload.label}`,
         watermark: WATERMARK,
         theme,
       });
 
-      lastDateRef.current = payload.date;
+      fileStampRef.current = payload.fileStamp;
       setCanDownload(true);
       setStatus('Ready — download your poster.');
     } catch (err) {
@@ -98,9 +83,7 @@ export default function StarMapApp() {
 
   const handleDownload = async () => {
     if (!posterRef.current) return;
-    const name = lastDateRef.current
-      ? `star-map-${fileDate(lastDateRef.current)}`
-      : 'star-map';
+    const name = fileStampRef.current ? `star-map-${fileStampRef.current}` : 'star-map';
     try {
       await exportPng(posterRef.current, name);
     } catch (err) {
@@ -126,6 +109,10 @@ export default function StarMapApp() {
         canDownload={canDownload}
         onDownload={handleDownload}
       />
+
+      <footer className="app__credits">
+        Geocoding by Open-Meteo · Places © OpenStreetMap contributors
+      </footer>
     </main>
   );
 }

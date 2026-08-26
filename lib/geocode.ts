@@ -1,4 +1,4 @@
-export interface GeocodeResult {
+export interface ParsedCoords {
   lat: number;
   lng: number;
   /** Human-readable label for the location (used in the poster subtitle). */
@@ -6,16 +6,14 @@ export interface GeocodeResult {
 }
 
 /**
- * Resolve a location query to coordinates.
+ * Parse a raw "lat, lng" pair (e.g. "40.7128, -74.006") for the manual-entry
+ * fallback. Returns null if the input is not a valid coordinate pair.
  *
- * STUB (Milestone 1): only parses a raw "lat, lng" pair (e.g. "40.7128, -74.006").
- * Returns null if the input is not a valid coordinate pair.
- *
- * TODO(milestone-2): integrate a real geocoding provider (e.g. a permissively
- * licensed / self-hostable one such as Nominatim or a keyed service) so users
- * can type a place name. Keep this signature so callers don't change.
+ * City-name search now goes through /api/geocode (Open-Meteo + Nominatim); this
+ * remains only for power users typing coordinates directly. Such input has no
+ * known timezone, so the caller treats the entered time as UTC.
  */
-export function geocode(query: string): GeocodeResult | null {
+export function parseCoords(query: string): ParsedCoords | null {
   const m = /^\s*(-?\d+(?:\.\d+)?)\s*[,;\s]\s*(-?\d+(?:\.\d+)?)\s*$/.exec(query);
   if (!m) return null;
   const lat = Number(m[1]);

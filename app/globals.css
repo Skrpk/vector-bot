@@ -99,6 +99,112 @@ body {
   margin: 0;
 }
 
+.form__selected {
+  margin: -4px 0 0;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.form__tz {
+  color: var(--muted);
+}
+
+/* --- City search (autocomplete) --- */
+.citysearch {
+  position: relative;
+}
+
+.citysearch input {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  padding: 11px 12px;
+  font-size: 15px;
+  width: 100%;
+}
+
+.citysearch input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.citysearch__list {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: #10152a;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.citysearch__msg {
+  padding: 10px 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.citysearch__item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text);
+  padding: 10px 10px;
+  font-size: 14px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.citysearch__item:hover {
+  background: var(--surface);
+}
+
+/* --- Manual coordinates fallback --- */
+.form__manual-toggle {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 13px;
+  padding: 0;
+  cursor: pointer;
+}
+
+.form__manual-toggle:hover {
+  color: var(--text);
+}
+
+.form__manual-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.form__manual-body input {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  padding: 11px 12px;
+  font-size: 15px;
+  width: 100%;
+}
+
+.form__manual-body input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 /* --- Buttons --- */
 .btn {
   appearance: none;
@@ -125,6 +231,12 @@ body {
   background: var(--surface);
   color: var(--text);
   border: 1px solid var(--border);
+}
+
+.btn--sm {
+  padding: 9px 12px;
+  font-size: 14px;
+  align-self: flex-start;
 }
 
 /* --- Poster preview --- */
@@ -161,4 +273,12 @@ body {
   height: 1000px;
   overflow: hidden;
   pointer-events: none;
+}
+
+/* --- Credits / attribution --- */
+.app__credits {
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+  opacity: 0.8;
 }
