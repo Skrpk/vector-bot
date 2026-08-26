@@ -9,9 +9,10 @@ sky exactly as it looked at a chosen date + location (first date, birth, wedding
 User picks date + place → previews the sky → downloads a poster PNG. It is a free
 viral lead-magnet for a Telegram channel about space/futurism/sci-fi.
 
-**Current status: Milestone 1 complete** — scaffold + working client-side star-map
-render + poster composition + PNG export. Later milestones add the paid gate,
-attribution, and server-side HD export (see "Milestone boundaries").
+**Current status: Milestone 1.5 complete** — M1 (scaffold + client star-map render +
+poster + PNG export) plus **city search geocoding with correct timezone→UTC handling**.
+Later milestones add the paid gate, attribution logging, and server-side HD export
+(see "Milestone boundaries").
 
 ## Stack
 
@@ -34,9 +35,9 @@ attribution, and server-side HD export (see "Milestone boundaries").
 
 ## Key dependencies + licenses (verified)
 
-| Package        | Version | License          | Role |
-|----------------|---------|------------------|------|
-| `d3-celestial` | 0.7.35  | **BSD-3-Clause** | sky map render; bundles d3 v3 + public-domain star/DSO/Milky-Way GeoJSON |
+| Package        | Version | License          | Role                                                                                          |
+| -------------- | ------- | ---------------- | --------------------------------------------------------------------------------------------- |
+| `d3-celestial` | 0.7.35  | **BSD-3-Clause** | sky map render; bundles d3 v3 + public-domain star/DSO/Milky-Way GeoJSON                      |
 | `@twa-dev/sdk` | 8.0.2   | **MIT**          | Telegram Mini App bootstrap (theme, initDataUnsafe, start_param); vendors telegram-web-app.js |
 
 `astronomy-engine` (MIT) is **not** installed — d3-celestial's own accuracy is
@@ -67,6 +68,7 @@ loads data over HTTP from `datapath`). We do **not** bundle it through the compi
 ## API shape (UI never touches d3-celestial directly)
 
 `lib/sky/`:
+
 - `renderStarMap(container, { date, lat, lng, theme, size? }) => Promise<HTMLCanvasElement>`
   — takes a **container element** (d3-celestial owns its own canvas), returns that canvas.
 - `composePoster(canvas, { starMapCanvas, title, subtitle, watermark, theme })` —
@@ -76,27 +78,65 @@ loads data over HTTP from `datapath`). We do **not** bundle it through the compi
   zenith-centered local sky). `types.ts` — `Theme`, `RenderOptions`, `PosterOptions`.
 
 `lib/telegram/`:
+
 - `initTelegram() => Promise<{ isTelegram, theme, startParam }>` — applies Telegram
   theme (or default dark in a plain browser), reads `start_param`. **No initData
   validation** (that's Milestone 2).
 - `theme.ts` — Telegram themeParams → `Theme`, CSS-var application, `DEFAULT_THEME`.
 
-`lib/geocode.ts` — `geocode(query)` is a **stub** that only parses `"lat, lng"`.
-Real provider is Milestone 2.
+`lib/geocode.ts` — `parseCoords(query)` parses a raw `"lat, lng"` pair for the
+manual-entry fallback only (city search now goes through `/api/geocode`).
 
 UI: `app/page.tsx` → `components/StarMapApp.tsx` (client orchestrator) →
-`InputForm.tsx` + `PosterCanvas.tsx`. `app/globals.css` holds theme CSS vars.
+`InputForm.tsx` (+ `CitySearch.tsx`) + `PosterCanvas.tsx`. `app/globals.css` holds
+theme CSS vars.
+
+## Geocoding + timezone (Milestone 1.5)
+
+Users type a **city name** and pick from debounced suggestions; the resolved IANA
+**timezone** is what makes local→UTC correct (the whole point — a wrong instant
+rotates the sky). Manual `lat, lng` entry stays as a secondary fallback.
+
+- **Providers** (server-side only, free, keyless): **Open-Meteo** geocoding is
+  primary (returns name/admin/country/lat/lng **and** `timezone`). **Nominatim
+  (OSM)** is the fallback, used only when Open-Meteo returns nothing — it needs an
+  identifying `User-Agent` (`NOMINATIM_USER_AGENT` env) and is rate-limited to
+  ~1 req/s (best-effort guard in the route). Nominatim results have `timezone: null`.
+  We do **not** use any terraink code (that project is AGPL/trademarked).
+- **`/api/geocode`** (`app/api/geocode/route.ts`, Node runtime): `GET ?q=&limit=`
+  (limit clamp 1–10, default 6; `q` < 2 chars → empty). Normalizes both providers to
+  `GeoResult { name, admin, country, lat, lng, timezone }` and returns
+  `{ results, provider, attribution? }`. **In-memory cache** (Map, 24h TTL) —
+  `// TODO(milestone-2: persistent cache)`. Never crashes → empty result on error.
+  The browser never calls providers directly (headers/CORS/rate-limit).
+- **Timezone → UTC** (`lib/time/localToUtc.ts`, no date library — uses `Intl` +
+  tzdata): `zonedWallClockToUtc(...)` inverts the zone offset (with a DST-refinement
+  pass); `resolveInstant(wall, tz)` returns the absolute instant — the chosen zone
+  when known, else **treats the wall clock as UTC** (manual-coords fallback; the UI
+  notes it). `InputForm` resolves the instant and passes it to `renderStarMap`, whose
+  `opts.date` is now the **absolute UTC instant** (it sets d3-celestial's `timezone`
+  to the browser offset to render at that instant unshifted — see renderStarMap).
+- **Attribution**: a persistent footer credits Open-Meteo (courtesy) and
+  "© OpenStreetMap contributors" (required when the Nominatim fallback is used).
+- Verified: Prague → 50.088, 14.421, `Europe/Prague`; 21:30 local resolves to
+  19:30Z and d3-celestial's zenith RA matches the computed sidereal time to 0.00°;
+  Prague/Kyiv/NYC at the same wall clock give three different instants + skies.
+  `// TODO`: reverse geocoding / "use my location" (GPS) in `CitySearch`.
 
 ## Milestone boundaries
 
 **Done (M1):** scaffold, Telegram shell + theme, client star-map render, poster
 compose, PNG export.
 
+**Done (M1.5):** city search geocoding (`/api/geocode`, Open-Meteo + Nominatim),
+debounced autocomplete, manual-coords fallback, timezone→UTC correctness, attribution.
+
 **NOT built yet — Milestone 2 (marked `// TODO(milestone-2)` in code):**
 subscription / channel-membership gate (`getChatMember`), `initData` HMAC
-validation, real geocoder, `start_param` attribution logging, DB (no PlanetScale),
-watermark on/off toggle, HD export resolution, server-side Satori/HD render, PDF,
-premium styles, payments.
+validation, `start_param` attribution logging, **persistent geocode cache** (DB, no
+PlanetScale yet), watermark on/off toggle, HD export resolution, server-side
+Satori/HD render, PDF, premium styles, payments. Also deferred: reverse geocoding /
+GPS "use my location".
 
 ## Verify locally
 
