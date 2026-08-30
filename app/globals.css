@@ -285,10 +285,40 @@ body {
 .poster__canvas {
   width: 100%;
   max-width: 420px;
-  aspect-ratio: 1080 / 1350;
+  height: auto; /* follow the selected size's intrinsic aspect ratio */
   border-radius: 14px;
   border: 1px solid var(--border);
   background: var(--bg);
+}
+
+/* Poster size selector */
+.sizes {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.sizes__opt {
+  appearance: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 12px;
+  border-radius: 9px;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.sizes__opt--active {
+  color: var(--text);
+  border-color: var(--accent);
+  background: rgba(110, 168, 255, 0.14);
 }
 
 .poster__canvas[hidden],
@@ -299,7 +329,7 @@ body {
 .wallpaper__canvas {
   width: 100%;
   max-width: 300px;
-  aspect-ratio: 1290 / 2796;
+  height: auto; /* follow the selected aspect ratio */
   border-radius: 14px;
   border: 1px solid var(--border);
   background: #0b1020; /* matches the sky background */

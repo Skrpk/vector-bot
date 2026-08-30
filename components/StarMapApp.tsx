@@ -3,8 +3,16 @@
 import { useEffect, useRef, useState } from 'react';
 import InputForm, { type GeneratePayload } from '@/components/InputForm';
 import PosterCanvas, { type OutputTab } from '@/components/PosterCanvas';
-import { composePoster } from '@/lib/sky/composePoster';
-import { composeWallpaper } from '@/lib/sky/composeWallpaper';
+import {
+  composePoster,
+  DEFAULT_POSTER_SIZE_ID,
+  posterSizeById,
+} from '@/lib/sky/composePoster';
+import {
+  composeWallpaper,
+  DEFAULT_WALLPAPER_SIZE_ID,
+  wallpaperSizeById,
+} from '@/lib/sky/composeWallpaper';
 import { exportPng } from '@/lib/sky/exportPng';
 import { renderStarMap } from '@/lib/sky/renderStarMap';
 import type { Theme } from '@/lib/sky/types';
@@ -15,8 +23,17 @@ const SKY_SIZE = 1000;
 // Larger so the full-bleed wallpaper (sky scaled to cover the frame) stays crisp.
 const WALLPAPER_SKY_SIZE = 1600;
 // TODO(milestone-2): real @channel handle + paid-tier watermark toggle.
-const WATERMARK = '@your_channel';
+const WATERMARK = '@vector_2049_bot';
 const POSTER_TITLE = 'THE NIGHT SKY';
+
+/** Copy a canvas's pixels into a fresh detached canvas we can keep and reuse. */
+function snapshot(source: HTMLCanvasElement): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.width = source.width;
+  c.height = source.height;
+  c.getContext('2d')?.drawImage(source, 0, 0);
+  return c;
+}
 
 export default function StarMapApp() {
   const posterRef = useRef<HTMLCanvasElement | null>(null);
@@ -29,7 +46,23 @@ export default function StarMapApp() {
   const [loading, setLoading] = useState(false);
   const [canDownload, setCanDownload] = useState(false);
   const [activeTab, setActiveTab] = useState<OutputTab>('poster');
+  const [posterSizeId, setPosterSizeId] = useState(DEFAULT_POSTER_SIZE_ID);
+  const [wallpaperSizeId, setWallpaperSizeId] = useState(DEFAULT_WALLPAPER_SIZE_ID);
   const fileStampRef = useRef<string | null>(null);
+  // Snapshots of each output's star map, so changing a size recomposes instantly
+  // without re-rendering the sky.
+  const posterSkyRef = useRef<HTMLCanvasElement | null>(null);
+  const posterMetaRef = useRef<{
+    title: string;
+    subtitle: string;
+    watermark: string;
+  } | null>(null);
+  const wallpaperSkyRef = useRef<HTMLCanvasElement | null>(null);
+  const wallpaperMetaRef = useRef<{
+    place: string;
+    date: string;
+    watermark: string;
+  } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -50,6 +83,32 @@ export default function StarMapApp() {
     };
   }, []);
 
+  // Recompose the poster (from the cached sky snapshot) when the size changes.
+  useEffect(() => {
+    if (!posterSkyRef.current || !posterRef.current || !posterMetaRef.current) return;
+    const size = posterSizeById(posterSizeId);
+    composePoster(posterRef.current, {
+      starMapCanvas: posterSkyRef.current,
+      ...posterMetaRef.current,
+      theme,
+      width: size.w,
+      height: size.h,
+    });
+  }, [posterSizeId, theme]);
+
+  // Recompose the wallpaper (from its cached sky snapshot) when the size changes.
+  useEffect(() => {
+    if (!wallpaperSkyRef.current || !wallpaperRef.current || !wallpaperMetaRef.current)
+      return;
+    const size = wallpaperSizeById(wallpaperSizeId);
+    composeWallpaper(wallpaperRef.current, {
+      starMapCanvas: wallpaperSkyRef.current,
+      ...wallpaperMetaRef.current,
+      width: size.w,
+      height: size.h,
+    });
+  }, [wallpaperSizeId]);
+
   const handleGenerate = async (payload: GeneratePayload) => {
     if (!skyRef.current || !posterRef.current || !wallpaperRef.current) return;
     setLoading(true);
@@ -67,12 +126,21 @@ export default function StarMapApp() {
     try {
       // Poster: opaque sky with constellation lines + grid.
       const posterSky = await renderStarMap(skyRef.current, common);
-      composePoster(posterRef.current, {
-        starMapCanvas: posterSky,
+      // Snapshot it before the wallpaper render overwrites the shared d3 canvas,
+      // so poster-size changes can recompose without re-rendering.
+      posterSkyRef.current = snapshot(posterSky);
+      posterMetaRef.current = {
         title: POSTER_TITLE,
         subtitle: `${payload.displayDate}\n${payload.label}`,
         watermark: WATERMARK,
+      };
+      const size = posterSizeById(posterSizeId);
+      composePoster(posterRef.current, {
+        starMapCanvas: posterSkyRef.current,
+        ...posterMetaRef.current,
         theme,
+        width: size.w,
+        height: size.h,
       });
 
       // Wallpaper: same look as the poster (dark sky + stars + constellation
@@ -83,11 +151,18 @@ export default function StarMapApp() {
         background: 'sky',
         layers: 'full',
       });
-      composeWallpaper(wallpaperRef.current, {
-        starMapCanvas: wallpaperSky,
+      wallpaperSkyRef.current = snapshot(wallpaperSky);
+      wallpaperMetaRef.current = {
         place: payload.label,
         date: payload.displayDate,
         watermark: WATERMARK,
+      };
+      const wSize = wallpaperSizeById(wallpaperSizeId);
+      composeWallpaper(wallpaperRef.current, {
+        starMapCanvas: wallpaperSkyRef.current,
+        ...wallpaperMetaRef.current,
+        width: wSize.w,
+        height: wSize.h,
       });
 
       fileStampRef.current = payload.fileStamp;
@@ -108,7 +183,8 @@ export default function StarMapApp() {
     if (!canvas) return;
     const stamp = fileStampRef.current ?? '';
     const base = activeTab === 'wallpaper' ? 'star-wallpaper' : 'star-map';
-    const name = stamp ? `${base}-${stamp}` : base;
+    const suffix = activeTab === 'wallpaper' ? `-${wallpaperSizeId}` : `-${posterSizeId}`;
+    const name = stamp ? `${base}-${stamp}${suffix}` : `${base}${suffix}`;
     try {
       await exportPng(canvas, name);
     } catch (err) {
@@ -133,6 +209,10 @@ export default function StarMapApp() {
         formRef={formRef}
         activeTab={activeTab}
         onTabChange={setActiveTab}
+        posterSizeId={posterSizeId}
+        onPosterSizeChange={setPosterSizeId}
+        wallpaperSizeId={wallpaperSizeId}
+        onWallpaperSizeChange={setWallpaperSizeId}
         status={status}
         canDownload={canDownload}
         onDownload={handleDownload}

@@ -1,48 +1,84 @@
-import type { PosterOptions } from './types';
+import type { PosterOptions, PosterSize } from './types';
 
 /**
- * Poster layout. All geometry/typography lives here so the poster is easy to
- * restyle in one place. Units are pixels on the export canvas (portrait 4:5).
- *
- * TODO(milestone-2): promote this to multiple named premium styles and make the
- * export resolution configurable (see exportPng / EXPORT scale).
+ * Poster print sizes (cm) → export pixel dimensions. Rendered at ~150 DPI with
+ * the long edge capped so the canvas stays within mobile-browser limits.
+ * TODO(milestone-2): true 300-DPI "HD" export behind the paid tier.
  */
-export const POSTER = {
-  width: 1080,
-  height: 1350,
+const DPI = 150;
+const MAX_LONG_EDGE = 4096; // keep canvas mobile-safe (iOS/Telegram webview)
+
+function sizeFromCm(id: string, wCm: number, hCm: number): PosterSize {
+  let w = Math.round((wCm / 2.54) * DPI);
+  let h = Math.round((hCm / 2.54) * DPI);
+  if (h > MAX_LONG_EDGE) {
+    w = Math.round(w * (MAX_LONG_EDGE / h));
+    h = MAX_LONG_EDGE;
+  }
+  return { id, label: `${wCm}×${hCm} cm`, cm: [wCm, hCm], w, h };
+}
+
+export const POSTER_SIZES: readonly PosterSize[] = [
+  sizeFromCm('21x30', 21, 30),
+  sizeFromCm('30x40', 30, 40),
+  sizeFromCm('40x50', 40, 50),
+  sizeFromCm('50x70', 50, 70),
+] as const;
+
+/** Default poster size when the app loads. */
+export const DEFAULT_POSTER_SIZE_ID = '21x30';
+
+export function posterSizeById(id: string): PosterSize {
+  return POSTER_SIZES.find((s) => s.id === id) ?? POSTER_SIZES[0];
+}
+
+/**
+ * Layout, expressed relative to a 1080px reference width so it scales to any
+ * poster size. All geometry/typography lives here to make restyling easy.
+ */
+const LAYOUT = {
+  refWidth: 1080,
   margin: 90,
   /** Sky circle diameter as a fraction of poster width. */
   skyDiameterRatio: 0.82,
-  /** Vertical center of the sky circle as a fraction of poster height. */
+  /** Vertical centre of the sky circle as a fraction of poster height. */
   skyCenterYRatio: 0.42,
   ringWidth: 3,
-  titleFont: "600 62px 'Helvetica Neue', Arial, sans-serif",
-  subtitleFont: "400 30px 'Helvetica Neue', Arial, sans-serif",
-  watermarkFont: "500 26px 'Helvetica Neue', Arial, sans-serif",
+  titlePx: 62,
+  subtitlePx: 30,
+  watermarkPx: 26,
+  titleGap: 96, // circle bottom → title
+  subtitleTop: 84, // title top → first subtitle line
+  lineGap: 42,
+  font: "'Helvetica Neue', Arial, sans-serif",
 } as const;
 
 /**
- * Draw the composed poster (sky + title + subtitle + watermark) onto `canvas`.
- * The star map is drawn clipped into a circle with a thin accent ring; the app
- * theme colours the chrome while the sky keeps its own dark background.
+ * Draw the composed poster (sky + title + subtitle + watermark) onto `canvas` at
+ * the size given in `opts` (defaults to 40×50). The star map is clipped into a
+ * circle with a thin accent ring; the theme colours the chrome while the sky keeps
+ * its own dark background. Layout scales with the poster width.
  */
 export function composePoster(canvas: HTMLCanvasElement, opts: PosterOptions): void {
-  const { starMapCanvas, title, subtitle, watermark, theme } = opts;
+  const { starMapCanvas, title, subtitle, watermark, theme, width, height } = opts;
+  const s = width / LAYOUT.refWidth; // scale factor vs the reference width
+  const margin = LAYOUT.margin * s;
+  const maxTextWidth = width - margin * 2;
 
-  canvas.width = POSTER.width;
-  canvas.height = POSTER.height;
+  canvas.width = width;
+  canvas.height = height;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('2D context unavailable');
 
   // Background
   ctx.fillStyle = theme.background;
-  ctx.fillRect(0, 0, POSTER.width, POSTER.height);
+  ctx.fillRect(0, 0, width, height);
 
   // Sky circle geometry
-  const diameter = POSTER.width * POSTER.skyDiameterRatio;
+  const diameter = width * LAYOUT.skyDiameterRatio;
   const radius = diameter / 2;
-  const cx = POSTER.width / 2;
-  const cy = POSTER.height * POSTER.skyCenterYRatio;
+  const cx = width / 2;
+  const cy = height * LAYOUT.skyCenterYRatio;
 
   // Clip the (square) star map into the circle.
   ctx.save();
@@ -50,7 +86,6 @@ export function composePoster(canvas: HTMLCanvasElement, opts: PosterOptions): v
   ctx.arc(cx, cy, radius, 0, Math.PI * 2);
   ctx.closePath();
   ctx.clip();
-  // Cover-fit the square source into the circle's bounding box.
   const src = Math.min(starMapCanvas.width, starMapCanvas.height);
   const sx = (starMapCanvas.width - src) / 2;
   const sy = (starMapCanvas.height - src) / 2;
@@ -70,28 +105,27 @@ export function composePoster(canvas: HTMLCanvasElement, opts: PosterOptions): v
   // Accent ring around the sky
   ctx.beginPath();
   ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-  ctx.lineWidth = POSTER.ringWidth;
+  ctx.lineWidth = LAYOUT.ringWidth * s;
   ctx.strokeStyle = theme.accent;
   ctx.globalAlpha = 0.9;
   ctx.stroke();
   ctx.globalAlpha = 1;
 
   // Title
-  const textTop = cy + radius + 96;
+  const textTop = cy + radius + LAYOUT.titleGap * s;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
   ctx.fillStyle = theme.text;
-  ctx.font = POSTER.titleFont;
-  ctx.fillText(title, cx, textTop, POSTER.width - POSTER.margin * 2);
+  ctx.font = `600 ${LAYOUT.titlePx * s}px ${LAYOUT.font}`;
+  ctx.fillText(title, cx, textTop, maxTextWidth);
 
   // Subtitle (supports "\n" for multiple lines)
   ctx.fillStyle = theme.muted;
-  ctx.font = POSTER.subtitleFont;
-  const lines = subtitle.split('\n');
-  let y = textTop + 84;
-  for (const line of lines) {
-    ctx.fillText(line, cx, y, POSTER.width - POSTER.margin * 2);
-    y += 42;
+  ctx.font = `400 ${LAYOUT.subtitlePx * s}px ${LAYOUT.font}`;
+  let y = textTop + LAYOUT.subtitleTop * s;
+  for (const line of subtitle.split('\n')) {
+    ctx.fillText(line, cx, y, maxTextWidth);
+    y += LAYOUT.lineGap * s;
   }
 
   // Watermark (bottom-right corner)
@@ -99,13 +133,9 @@ export function composePoster(canvas: HTMLCanvasElement, opts: PosterOptions): v
   // placeholder for the real @channel handle.
   ctx.textAlign = 'right';
   ctx.textBaseline = 'bottom';
-  ctx.font = POSTER.watermarkFont;
+  ctx.font = `500 ${LAYOUT.watermarkPx * s}px ${LAYOUT.font}`;
   ctx.fillStyle = theme.muted;
   ctx.globalAlpha = 0.85;
-  ctx.fillText(
-    watermark,
-    POSTER.width - POSTER.margin,
-    POSTER.height - POSTER.margin * 0.6
-  );
+  ctx.fillText(watermark, width - margin, height - margin * 0.6);
   ctx.globalAlpha = 1;
 }

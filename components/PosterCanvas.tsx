@@ -1,6 +1,8 @@
 'use client';
 
 import type { RefObject } from 'react';
+import { POSTER_SIZES } from '@/lib/sky/composePoster';
+import { WALLPAPER_SIZES } from '@/lib/sky/composeWallpaper';
 
 export type OutputTab = 'poster' | 'wallpaper';
 
@@ -15,6 +17,10 @@ interface PosterCanvasProps {
   formRef: RefObject<HTMLDivElement | null>;
   activeTab: OutputTab;
   onTabChange: (tab: OutputTab) => void;
+  posterSizeId: string;
+  onPosterSizeChange: (id: string) => void;
+  wallpaperSizeId: string;
+  onWallpaperSizeChange: (id: string) => void;
   status: string;
   canDownload: boolean;
   onDownload: () => void;
@@ -33,6 +39,10 @@ export default function PosterCanvas({
   formRef,
   activeTab,
   onTabChange,
+  posterSizeId,
+  onPosterSizeChange,
+  wallpaperSizeId,
+  onWallpaperSizeChange,
   status,
   canDownload,
   onDownload,
@@ -60,20 +70,57 @@ export default function PosterCanvas({
         </button>
       </div>
 
+      {activeTab === 'poster' && (
+        <div className="sizes" role="group" aria-label="Poster size">
+          {POSTER_SIZES.map((size) => (
+            <button
+              key={size.id}
+              type="button"
+              aria-pressed={posterSizeId === size.id}
+              className={`sizes__opt${
+                posterSizeId === size.id ? ' sizes__opt--active' : ''
+              }`}
+              onClick={() => onPosterSizeChange(size.id)}
+            >
+              {size.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {activeTab === 'wallpaper' && (
+        <div className="sizes" role="group" aria-label="Wallpaper aspect ratio">
+          {WALLPAPER_SIZES.map((size) => (
+            <button
+              key={size.id}
+              type="button"
+              aria-pressed={wallpaperSizeId === size.id}
+              className={`sizes__opt${
+                wallpaperSizeId === size.id ? ' sizes__opt--active' : ''
+              }`}
+              onClick={() => onWallpaperSizeChange(size.id)}
+              title={`${size.w}×${size.h}`}
+            >
+              {size.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="poster__stage">
         <canvas
           ref={posterRef}
           className="poster__canvas"
-          width={1080}
-          height={1350}
+          width={POSTER_SIZES[0].w}
+          height={POSTER_SIZES[0].h}
           aria-label="Star map poster preview"
           hidden={activeTab !== 'poster'}
         />
         <canvas
           ref={wallpaperRef}
           className="wallpaper__canvas"
-          width={1290}
-          height={2796}
+          width={WALLPAPER_SIZES[2].w}
+          height={WALLPAPER_SIZES[2].h}
           aria-label="Star map wallpaper preview"
           hidden={activeTab !== 'wallpaper'}
         />
@@ -81,7 +128,8 @@ export default function PosterCanvas({
 
       {activeTab === 'wallpaper' && (
         <p className="poster__note">
-          {1290}×{2796} · full-bleed stars · white text — set it as your iPhone wallpaper.
+          Full-bleed stars · white text — pick your phone&apos;s aspect ratio and set it
+          as your wallpaper.
         </p>
       )}
 

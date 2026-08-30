@@ -46,6 +46,20 @@ export interface RenderOptions {
   layers?: SkyLayers;
 }
 
+/** A selectable poster print size and its export pixel dimensions. */
+export interface PosterSize {
+  /** Stable id, e.g. "40x50". */
+  id: string;
+  /** Display label, e.g. "40×50 cm". */
+  label: string;
+  /** Physical size in centimetres [width, height]. */
+  cm: [number, number];
+  /** Export pixel width. */
+  w: number;
+  /** Export pixel height. */
+  h: number;
+}
+
 /** Inputs to composePoster. */
 export interface PosterOptions {
   starMapCanvas: HTMLCanvasElement;
@@ -53,6 +67,22 @@ export interface PosterOptions {
   subtitle: string;
   watermark: string;
   theme: Theme;
+  /** Export pixel width (from the selected PosterSize). */
+  width: number;
+  /** Export pixel height (from the selected PosterSize). */
+  height: number;
+}
+
+/** A selectable phone-wallpaper resolution. */
+export interface WallpaperSize {
+  /** Stable id, e.g. "9x195". */
+  id: string;
+  /** Display label, e.g. "9:19.5". */
+  label: string;
+  /** Export pixel width. */
+  w: number;
+  /** Export pixel height. */
+  h: number;
 }
 
 /**
@@ -66,4 +96,8 @@ export interface WallpaperOptions {
   /** Human-readable date/time line. */
   date: string;
   watermark: string;
+  /** Export pixel width (from the selected WallpaperSize). */
+  width: number;
+  /** Export pixel height (from the selected WallpaperSize). */
+  height: number;
 }

@@ -1,35 +1,52 @@
 import { SKY_BACKGROUND } from './celestial-config';
-import type { WallpaperOptions } from './types';
+import type { WallpaperOptions, WallpaperSize } from './types';
 
 /**
- * Wallpaper layout — a tall iPhone-friendly frame (≈9:19.5). All geometry/
- * typography lives here so it's easy to restyle in one place.
- *
- * The wallpaper uses the **same dark sky + stars + constellation lines as the
- * poster** with **white text**, scaled to **cover the whole frame** — the circular
- * projection is enlarged past the frame's diagonal so stars reach every edge and
- * corner.
+ * Popular phone-wallpaper resolutions, covering the aspect ratios of most devices
+ * out there (not just iPhones). Full-bleed cover means only the aspect ratio really
+ * matters; the pixel dims are common native resolutions and stay mobile-safe.
  */
-export const WALLPAPER = {
-  width: 1290,
-  height: 2796, // iPhone 16 Pro Max pixels; iOS scales down on smaller devices
-  /** Baseline y (fraction of height) of the place line. */
-  placeYRatio: 0.8,
-  placeFont: "600 66px 'Helvetica Neue', Arial, sans-serif",
-  dateFont: "400 44px 'Helvetica Neue', Arial, sans-serif",
-  watermarkFont: "500 34px 'Helvetica Neue', Arial, sans-serif",
+export const WALLPAPER_SIZES: readonly WallpaperSize[] = [
+  { id: '9x16', label: '9:16', w: 1080, h: 1920 }, // classic / many older phones
+  { id: '9x20', label: '9:20', w: 1080, h: 2400 }, // most common modern Android
+  { id: '9x195', label: '9:19.5', w: 1290, h: 2796 }, // recent iPhone
+  { id: '9x21', label: '9:21', w: 1080, h: 2520 }, // extra-tall (Sony / some Android)
+] as const;
+
+/** Default wallpaper size when the app loads. */
+export const DEFAULT_WALLPAPER_SIZE_ID = '9x195';
+
+export function wallpaperSizeById(id: string): WallpaperSize {
+  return WALLPAPER_SIZES.find((s) => s.id === id) ?? WALLPAPER_SIZES[0];
+}
+
+/**
+ * Wallpaper layout, expressed relative to a 1290px reference width so it scales to
+ * any resolution. The wallpaper uses the **same dark sky + stars + constellation
+ * lines as the poster** with **white text**, scaled to **cover the whole frame** —
+ * the circular projection is enlarged past the frame's diagonal so stars reach
+ * every edge and corner.
+ */
+const LAYOUT = {
+  refWidth: 1290,
+  placeYRatio: 0.8, // baseline y of the place line (fraction of height)
+  placePx: 66,
+  datePx: 44,
+  watermarkPx: 34,
+  dateGap: 64, // place baseline → date baseline
+  font: "'Helvetica Neue', Arial, sans-serif",
 } as const;
 
 /**
- * Draw the wallpaper (full-bleed dark sky + stars + white text) onto `canvas`,
- * using the same deep-space background as the poster.
+ * Draw the full-bleed wallpaper (dark sky + stars + white text) onto `canvas` at
+ * the size given in `opts`, using the same deep-space background as the poster.
  */
 export function composeWallpaper(
   canvas: HTMLCanvasElement,
   opts: WallpaperOptions
 ): void {
-  const { starMapCanvas, place, date, watermark } = opts;
-  const { width: W, height: H } = WALLPAPER;
+  const { starMapCanvas, place, date, watermark, width: W, height: H } = opts;
+  const s = W / LAYOUT.refWidth; // scale type with width
 
   canvas.width = W;
   canvas.height = H;
@@ -43,36 +60,37 @@ export function composeWallpaper(
   // Cover the whole frame. The source is a circular sky disc inscribed in a
   // square; to leave no empty corners we scale that square to the frame's
   // diagonal (so the disc's radius ≥ half-diagonal) and centre it.
-  const S = Math.min(starMapCanvas.width, starMapCanvas.height);
-  const sx = (starMapCanvas.width - S) / 2;
-  const sy = (starMapCanvas.height - S) / 2;
+  const src = Math.min(starMapCanvas.width, starMapCanvas.height);
+  const sx = (starMapCanvas.width - src) / 2;
+  const sy = (starMapCanvas.height - src) / 2;
   const dest = Math.hypot(W, H);
   const dx = (W - dest) / 2;
   const dy = (H - dest) / 2;
-  ctx.drawImage(starMapCanvas, sx, sy, S, S, dx, dy, dest, dest);
+  ctx.drawImage(starMapCanvas, sx, sy, src, src, dx, dy, dest, dest);
 
   // White text with a soft shadow so it stays legible over stars / light screens.
   ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
   ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
-  ctx.shadowBlur = 18;
+  ctx.shadowBlur = 18 * s;
   const maxTextWidth = W * 0.86;
   const cx = W / 2;
+  const placeY = H * LAYOUT.placeYRatio;
 
-  ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#ffffff';
-  ctx.font = WALLPAPER.placeFont;
-  ctx.fillText(place, cx, H * WALLPAPER.placeYRatio, maxTextWidth);
+  ctx.font = `600 ${LAYOUT.placePx * s}px ${LAYOUT.font}`;
+  ctx.fillText(place, cx, placeY, maxTextWidth);
 
-  ctx.font = WALLPAPER.dateFont;
+  ctx.font = `400 ${LAYOUT.datePx * s}px ${LAYOUT.font}`;
   ctx.globalAlpha = 0.85;
-  ctx.fillText(date, cx, H * WALLPAPER.placeYRatio + 64, maxTextWidth);
+  ctx.fillText(date, cx, placeY + LAYOUT.dateGap * s, maxTextWidth);
   ctx.globalAlpha = 1;
 
   // Watermark near the bottom.
   // TODO(milestone-2): real @channel handle + paid-tier watermark toggle.
-  ctx.font = WALLPAPER.watermarkFont;
+  ctx.font = `500 ${LAYOUT.watermarkPx * s}px ${LAYOUT.font}`;
   ctx.globalAlpha = 0.7;
-  ctx.fillText(watermark, cx, H - 96, maxTextWidth);
+  ctx.fillText(watermark, cx, H - 96 * s, maxTextWidth);
   ctx.globalAlpha = 1;
 
   ctx.shadowBlur = 0;

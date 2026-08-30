@@ -117,8 +117,12 @@ export function renderStarMap(
   );
 }
 
-/** Cheap check: does a downscaled snapshot contain enough bright pixels (stars/
- * lines)? Dark background and the faint boundary ring don't count. */
+/**
+ * Cheap check: has the star catalog been painted yet? We downscale to 48×48 and
+ * count bright cells (stars / constellation lines). A freshly-cleared or
+ * background-only canvas yields ~0; any real starfield yields well over the
+ * threshold, so a low bar reliably tells "painted" from "empty" across sizes.
+ */
 function hasBrightContent(canvas: HTMLCanvasElement): boolean {
   const s = document.createElement('canvas');
   s.width = 48;
@@ -132,7 +136,7 @@ function hasBrightContent(canvas: HTMLCanvasElement): boolean {
   for (let i = 0; i < data.length; i += 4) {
     if (data[i + 3] > 10 && (data[i] + data[i + 1] + data[i + 2]) / 3 > 80) bright++;
   }
-  return bright > 20;
+  return bright > 5;
 }
 
 function waitForContent(
@@ -140,8 +144,8 @@ function waitForContent(
   resolve: (c: HTMLCanvasElement) => void,
   attempt = 0
 ): void {
-  // ~3s ceiling (100 × 30ms); resolve anyway rather than hang.
-  if (attempt >= 100 || hasBrightContent(canvas)) {
+  // ~1.5s ceiling (50 × 30ms); resolve anyway rather than hang.
+  if (attempt >= 50 || hasBrightContent(canvas)) {
     resolve(canvas);
     return;
   }
