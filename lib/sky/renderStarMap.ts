@@ -1,5 +1,11 @@
-import { buildCelestialConfig } from './celestial-config';
+import { buildCelestialConfig, SKY_BACKGROUND } from './celestial-config';
 import { loadCelestial } from './celestial-loader';
+import {
+  drawConstellationArt,
+  hasArtSets,
+  loadArtSet,
+  type SkyProjection,
+} from './constellation-art';
 import type { RenderOptions } from './types';
 
 const DEFAULT_SIZE = 1000;
@@ -52,7 +58,15 @@ export function renderStarMap(
     milkyWay,
     constellations,
     constellationNames,
+    art,
   } = opts;
+
+  // Art needs to sit *behind* the stars, so we render the sky transparent, draw
+  // the illustrations with `destination-over`, then fill the background behind
+  // them. When art is off we keep the requested (usually opaque) background.
+  const artEnabled = !!art?.set && hasArtSets();
+  const effectiveBackground = artEnabled ? 'transparent' : background;
+  const fillColor = bgColor ?? SKY_BACKGROUND;
 
   if (!container.id) container.id = 'celestial-map';
   container.style.width = `${size}px`;
@@ -66,7 +80,7 @@ export function renderStarMap(
           size,
           lat,
           lng,
-          background,
+          background: effectiveBackground,
           bgColor,
           milkyWay,
           constellations,
@@ -99,7 +113,29 @@ export function renderStarMap(
             reject(new Error('d3-celestial produced no canvas'));
             return;
           }
-          resolve(canvas);
+          if (!artEnabled || !art) {
+            resolve(canvas);
+            return;
+          }
+          // Draw the illustrations behind the sky, then fill the background
+          // behind them, then hand back the finished (opaque) canvas.
+          loadArtSet(art.set)
+            .then(() => {
+              drawConstellationArt(canvas, celestial.mapProjection as SkyProjection, {
+                setId: art.set,
+                opacity: art.opacity,
+              });
+              const ctx = canvas.getContext('2d');
+              if (ctx) {
+                ctx.save();
+                ctx.globalCompositeOperation = 'destination-over';
+                ctx.fillStyle = fillColor;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.restore();
+              }
+            })
+            .catch((err) => console.error('[art] overlay failed:', err))
+            .finally(() => resolve(canvas));
         }
 
         function scheduleQuiet() {

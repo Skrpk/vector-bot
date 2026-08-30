@@ -31,6 +31,8 @@ export interface SkyOptions {
   constellations: boolean;
   /** Draw constellation names (Ukrainian). */
   constellationNames: boolean;
+  /** Overlay Stellarium-style constellation illustrations. */
+  constellationArt: boolean;
 }
 
 /** Inputs to renderStarMap. */
@@ -51,6 +53,8 @@ export interface RenderOptions extends Partial<SkyOptions> {
   background?: SkyBackground;
   /** Background fill colour (hex), e.g. deep-space navy or black. */
   bgColor?: string;
+  /** Constellation-artwork overlay; null/omitted = off. */
+  art?: { set: string; opacity?: number } | null;
   // milkyWay / constellations / constellationNames come from Partial<SkyOptions>.
 }
 

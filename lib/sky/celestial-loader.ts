@@ -17,6 +17,10 @@ export interface Celestial {
   redraw(): void;
   resize(config?: CelestialConfig): void;
   clear(): void;
+  /** Live d3 projection: [lon,lat] → [x,y] in CSS px, with `.translate()`. */
+  mapProjection?: ((coords: [number, number]) => [number, number] | null) & {
+    translate?: () => [number, number];
+  };
 }
 
 declare global {

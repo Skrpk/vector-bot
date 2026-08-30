@@ -10,6 +10,7 @@ import {
   posterSizeById,
 } from '@/lib/sky/composePoster';
 import { bgColorById, DEFAULT_BG_COLOR_ID } from '@/lib/sky/celestial-config';
+import { DEFAULT_ART_SET_ID, hasArtSets } from '@/lib/sky/constellation-art';
 import {
   composeWallpaper,
   DEFAULT_WALLPAPER_SIZE_ID,
@@ -32,6 +33,7 @@ const DEFAULT_SKY_OPTIONS: SkyOptions = {
   milkyWay: true,
   constellations: true,
   constellationNames: false,
+  constellationArt: false,
 };
 
 /** Copy a canvas's pixels into a fresh detached canvas we can keep and reuse. */
@@ -58,6 +60,7 @@ export default function StarMapApp() {
   const [wallpaperSizeId, setWallpaperSizeId] = useState(DEFAULT_WALLPAPER_SIZE_ID);
   const [skyOptions, setSkyOptions] = useState<SkyOptions>(DEFAULT_SKY_OPTIONS);
   const [bgColorId, setBgColorId] = useState<string>(DEFAULT_BG_COLOR_ID);
+  const [artSetId, setArtSetId] = useState<string>(DEFAULT_ART_SET_ID);
   const fileStampRef = useRef<string | null>(null);
   // Last inputs, so toggling a sky option can re-render without re-entering the form.
   const lastPayloadRef = useRef<GeneratePayload | null>(null);
@@ -128,7 +131,8 @@ export default function StarMapApp() {
   const handleGenerate = async (
     payload: GeneratePayload,
     opts: SkyOptions,
-    bgId: string
+    bgId: string,
+    artSet: string
   ) => {
     if (!skyRef.current || !posterRef.current || !wallpaperRef.current) return;
     lastPayloadRef.current = payload;
@@ -137,6 +141,7 @@ export default function StarMapApp() {
     setStatus('Rendering the sky…');
 
     const bg = bgColorById(bgId);
+    const art = opts.constellationArt && hasArtSets() ? { set: artSet } : null;
     const common = {
       date: payload.date,
       lat: payload.lat,
@@ -144,7 +149,10 @@ export default function StarMapApp() {
       theme,
       size: SKY_SIZE,
       bgColor: bg,
-      ...opts, // milkyWay / constellations / constellationNames (shared by both)
+      milkyWay: opts.milkyWay,
+      constellations: opts.constellations,
+      constellationNames: opts.constellationNames,
+      art,
     };
 
     try {
@@ -211,7 +219,7 @@ export default function StarMapApp() {
     const next = { ...skyOptions, [key]: value };
     setSkyOptions(next);
     if (lastPayloadRef.current) {
-      void handleGenerate(lastPayloadRef.current, next, bgColorId);
+      void handleGenerate(lastPayloadRef.current, next, bgColorId, artSetId);
     }
   };
 
@@ -219,7 +227,15 @@ export default function StarMapApp() {
   const handleBgColorChange = (id: string) => {
     setBgColorId(id);
     if (lastPayloadRef.current) {
-      void handleGenerate(lastPayloadRef.current, skyOptions, id);
+      void handleGenerate(lastPayloadRef.current, skyOptions, id, artSetId);
+    }
+  };
+
+  // Switching the illustration set re-renders both outputs.
+  const handleArtSetChange = (id: string) => {
+    setArtSetId(id);
+    if (lastPayloadRef.current) {
+      void handleGenerate(lastPayloadRef.current, skyOptions, bgColorId, id);
     }
   };
 
@@ -247,15 +263,17 @@ export default function StarMapApp() {
 
       <InputForm
         disabled={loading}
-        onGenerate={(payload) => handleGenerate(payload, skyOptions, bgColorId)}
+        onGenerate={(payload) => handleGenerate(payload, skyOptions, bgColorId, artSetId)}
       />
 
       <SkyOptionsControls
         value={skyOptions}
         bgColorId={bgColorId}
+        artSetId={artSetId}
         disabled={loading}
         onChange={handleSkyOptionChange}
         onBgColorChange={handleBgColorChange}
+        onArtSetChange={handleArtSetChange}
       />
 
       <PosterCanvas
