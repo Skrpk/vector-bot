@@ -4,13 +4,15 @@ Memory for future sessions. Keep this accurate as the code evolves.
 
 ## What this is
 
-A Telegram Mini App that generates a personalized **star-map poster** — the night
-sky exactly as it looked at a chosen date + location (first date, birth, wedding).
-User picks date + place → previews the sky → downloads a poster PNG. It is a free
-viral lead-magnet for a Telegram channel about space/futurism/sci-fi.
+A Telegram Mini App that generates a personalized **star map** — the night sky
+exactly as it looked at a chosen date + location (first date, birth, wedding).
+User picks date + place → previews the sky → downloads a PNG in one of two formats
+(tabs): a framed **Poster** or a full-bleed iPhone **Wallpaper**. It is a free viral
+lead-magnet for a Telegram channel about space/futurism/sci-fi.
 
-**Current status: Milestone 1.5 complete** — M1 (scaffold + client star-map render +
-poster + PNG export) plus **city search geocoding with correct timezone→UTC handling**.
+**Current status: Milestone 1.5 complete + dual output formats** — M1 (scaffold +
+client star-map render + poster + PNG export), M1.5 (**city search geocoding with
+correct timezone→UTC handling**), plus a **Poster / Wallpaper tabbed output**.
 Later milestones add the paid gate, attribution logging, and server-side HD export
 (see "Milestone boundaries").
 
@@ -69,13 +71,27 @@ loads data over HTTP from `datapath`). We do **not** bundle it through the compi
 
 `lib/sky/`:
 
-- `renderStarMap(container, { date, lat, lng, theme, size? }) => Promise<HTMLCanvasElement>`
-  — takes a **container element** (d3-celestial owns its own canvas), returns that canvas.
+- `renderStarMap(container, { date, lat, lng, theme, size?, background?, layers? })
+=> Promise<HTMLCanvasElement>` — takes a **container element** (d3-celestial owns its
+  own canvas), returns that canvas. `background`: `'sky'` (opaque, poster) | `'transparent'`
+  (wallpaper); `layers`: `'full'` (stars + constellation lines + grid) | `'stars'` (stars +
+  faint Milky Way only). **Before resolving it polls the canvas until it holds bright
+  content** — the first redraw callback can fire before the star catalog is painted
+  (notably on a 2nd back-to-back render when data is cached), which otherwise hands back an
+  empty canvas.
 - `composePoster(canvas, { starMapCanvas, title, subtitle, watermark, theme })` —
-  draws the portrait 1080×1350 poster. Layout constants in `POSTER` (one place to restyle).
+  draws the portrait 1080×1350 poster (framed circular sky on the theme background).
+  Layout constants in `POSTER`.
+- `composeWallpaper(canvas, { starMapCanvas, place, date, watermark })` — draws a
+  1290×2796 iPhone wallpaper: **same dark sky + stars + constellation lines as the
+  poster** + **white text**, sky scaled to **cover the whole frame** (source disc
+  enlarged past the frame diagonal so stars reach every edge). Layout constants in
+  `WALLPAPER`. Feed it a `background:'sky'`, `layers:'full'` render (rendered larger,
+  ~1600, for crispness).
 - `exportPng(canvas, filename) => Promise<void>` — `canvas.toBlob()` download.
 - `celestial-config.ts` — the dark, clean d3-celestial config (airy projection,
-  zenith-centered local sky). `types.ts` — `Theme`, `RenderOptions`, `PosterOptions`.
+  zenith-centered local sky), parameterised by `background`/`layers`. `types.ts` —
+  `Theme`, `RenderOptions`, `PosterOptions`, `WallpaperOptions`, `SkyBackground`, `SkyLayers`.
 
 `lib/telegram/`:
 
@@ -89,7 +105,11 @@ manual-entry fallback only (city search now goes through `/api/geocode`).
 
 UI: `app/page.tsx` → `components/StarMapApp.tsx` (client orchestrator) →
 `InputForm.tsx` (+ `CitySearch.tsx`) + `PosterCanvas.tsx`. `app/globals.css` holds
-theme CSS vars.
+theme CSS vars. On "Render", StarMapApp renders the sky **twice** off-screen (poster:
+sky/full; wallpaper: sky/full, larger) and composes both; `PosterCanvas`
+shows them behind **Poster / Wallpaper tabs** (both canvases stay mounted, so switching
+tabs never re-renders), and the Download button exports the active tab
+(`star-map-<date>.png` / `star-wallpaper-<date>.png`).
 
 ## Geocoding + timezone (Milestone 1.5)
 
@@ -130,6 +150,10 @@ compose, PNG export.
 
 **Done (M1.5):** city search geocoding (`/api/geocode`, Open-Meteo + Nominatim),
 debounced autocomplete, manual-coords fallback, timezone→UTC correctness, attribution.
+
+**Done (dual output):** Poster / Wallpaper tabs — framed 1080×1350 poster and a
+full-bleed 1290×2796 iPhone wallpaper (dark sky, stars + constellation lines, white
+text). Both composed on each render; the export downloads the active tab.
 
 **NOT built yet — Milestone 2 (marked `// TODO(milestone-2)` in code):**
 subscription / channel-membership gate (`getChatMember`), `initData` HMAC
