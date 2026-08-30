@@ -34,7 +34,7 @@ const DEFAULT_SKY_OPTIONS: SkyOptions = {
   milkyWay: false,
   constellations: true,
   constellationNames: false,
-  constellationArt: false,
+  constellationArt: true,
 };
 
 /** Copy a canvas's pixels into a fresh detached canvas we can keep and reuse. */

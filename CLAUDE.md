@@ -136,7 +136,7 @@ was removed, so a place always carries an IANA timezone.
 UI: `app/page.tsx` → `components/StarMapApp.tsx` (client orchestrator) →
 `InputForm.tsx` (+ `CitySearch.tsx`) + `SkyOptions.tsx` (+ `AboutArt.tsx` attribution
 modal, Free Art License) + `PosterCanvas.tsx`. `app/globals.css` holds theme CSS vars.
-Constellation art is listed first; Milky Way defaults **off**. **Wallpaper is the
+Constellation art is listed first and defaults **on**; Milky Way defaults **off**. **Wallpaper is the
 default tab** (left of Poster). `InputForm` has a customizable **Title** (shown on both
 outputs). The **Background** control sets the sky colour _inside_ the circle (both
 outputs); a poster-only **Paper** selector (Deep space / Black / White) sets the colour
