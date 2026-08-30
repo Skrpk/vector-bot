@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import CitySearch from '@/components/CitySearch';
-import { parseCoords } from '@/lib/geocode';
 import type { GeoResult } from '@/lib/geo/types';
 import { resolveInstant } from '@/lib/time/localToUtc';
 
@@ -11,9 +10,9 @@ export interface GeneratePayload {
   date: Date;
   lat: number;
   lng: number;
-  /** Place label for the poster subtitle ("City, Region, Country" or coords). */
+  /** Place label for the poster subtitle ("City, Region, Country"). */
   label: string;
-  /** IANA timezone if known, else null (manual coords → time treated as UTC). */
+  /** IANA timezone of the chosen place. */
   timezone: string | null;
   /** The entered wall-clock time, formatted for display on the poster. */
   displayDate: string;
@@ -21,7 +20,6 @@ export interface GeneratePayload {
   fileStamp: string;
 }
 
-/** A resolved location, from either city search or manual coordinates. */
 interface SelectedLocation {
   lat: number;
   lng: number;
@@ -61,8 +59,6 @@ function formatDisplayDate(wall: string): string {
 export default function InputForm({ disabled, onGenerate }: InputFormProps) {
   const [dateTime, setDateTime] = useState(defaultDateTimeLocal);
   const [location, setLocation] = useState<SelectedLocation | null>(null);
-  const [manualOpen, setManualOpen] = useState(false);
-  const [manualCoords, setManualCoords] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const handleCitySelect = (place: GeoResult, label: string) => {
@@ -75,27 +71,12 @@ export default function InputForm({ disabled, onGenerate }: InputFormProps) {
     });
   };
 
-  const applyManual = () => {
-    setError(null);
-    const parsed = parseCoords(manualCoords);
-    if (!parsed) {
-      setError('Enter coordinates as "lat, lng" — e.g. 50.08, 14.44.');
-      return;
-    }
-    setLocation({
-      lat: parsed.lat,
-      lng: parsed.lng,
-      timezone: null, // unknown → time treated as UTC
-      label: parsed.label,
-    });
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
     if (!location) {
-      setError('Search for a city or enter coordinates first.');
+      setError('Search for a city and pick it from the list first.');
       return;
     }
 
@@ -140,46 +121,9 @@ export default function InputForm({ disabled, onGenerate }: InputFormProps) {
       {location && (
         <p className="form__selected">
           {location.label}
-          {location.timezone ? (
-            <span className="form__tz"> · {location.timezone}</span>
-          ) : (
-            <span className="form__tz"> · time interpreted as UTC</span>
-          )}
+          {location.timezone && <span className="form__tz"> · {location.timezone}</span>}
         </p>
       )}
-
-      <div className="form__manual">
-        <button
-          type="button"
-          className="form__manual-toggle"
-          aria-expanded={manualOpen}
-          onClick={() => setManualOpen((v) => !v)}
-        >
-          {manualOpen ? '▾' : '▸'} Enter coordinates manually
-        </button>
-
-        {manualOpen && (
-          <div className="form__manual-body">
-            <input
-              type="text"
-              inputMode="text"
-              placeholder="50.0880, 14.4208"
-              value={manualCoords}
-              onChange={(e) => setManualCoords(e.target.value)}
-            />
-            <button
-              type="button"
-              className="btn btn--ghost btn--sm"
-              onClick={applyManual}
-            >
-              Use coordinates
-            </button>
-            <p className="form__hint">
-              No timezone for raw coordinates — the time above is treated as UTC.
-            </p>
-          </div>
-        )}
-      </div>
 
       {error && <p className="form__error">{error}</p>}
 

@@ -169,42 +169,6 @@ body {
   background: var(--surface);
 }
 
-/* --- Manual coordinates fallback --- */
-.form__manual-toggle {
-  background: none;
-  border: none;
-  color: var(--muted);
-  font-size: 13px;
-  padding: 0;
-  cursor: pointer;
-}
-
-.form__manual-toggle:hover {
-  color: var(--text);
-}
-
-.form__manual-body {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.form__manual-body input {
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  color: var(--text);
-  padding: 11px 12px;
-  font-size: 15px;
-  width: 100%;
-}
-
-.form__manual-body input:focus {
-  outline: none;
-  border-color: var(--accent);
-}
-
 /* --- Buttons --- */
 .btn {
   appearance: none;
@@ -231,12 +195,6 @@ body {
   background: var(--surface);
   color: var(--text);
   border: 1px solid var(--border);
-}
-
-.btn--sm {
-  padding: 9px 12px;
-  font-size: 14px;
-  align-self: flex-start;
 }
 
 /* --- Sky options (shared toggles) --- */
@@ -301,6 +259,106 @@ body {
   border: 1px solid var(--border);
   margin-right: 7px;
   vertical-align: -1px;
+}
+
+.skyopts__about {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 10px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.skyopts__about:hover {
+  text-decoration: underline;
+}
+
+/* --- Modal / bottom sheet --- */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.modal__panel {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  background: #10152a;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 22px 20px 20px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+}
+
+.modal__close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.modal__close:hover {
+  color: var(--text);
+}
+
+.modal__title {
+  margin: 0 0 12px;
+  font-size: 18px;
+  color: var(--text);
+}
+
+.modal__meta {
+  margin: 2px 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.modal__body {
+  margin: 14px 0 16px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.modal__links {
+  margin: 0;
+  font-size: 14px;
+}
+
+.modal__links a {
+  color: var(--accent);
+}
+
+/* On small screens the modal sits as a bottom sheet. */
+@media (max-width: 520px) {
+  .modal {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .modal__panel {
+    max-width: none;
+    border-radius: 16px 16px 0 0;
+    padding-bottom: 28px;
+  }
 }
 
 /* --- Output preview (tabbed) --- */

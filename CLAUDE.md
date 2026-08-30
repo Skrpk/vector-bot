@@ -130,12 +130,13 @@ width, height })` — draws a full-bleed phone wallpaper at `width`×`height`: *
   validation** (that's Milestone 2).
 - `theme.ts` — Telegram themeParams → `Theme`, CSS-var application, `DEFAULT_THEME`.
 
-`lib/geocode.ts` — `parseCoords(query)` parses a raw `"lat, lng"` pair for the
-manual-entry fallback only (city search now goes through `/api/geocode`).
+Location is **city-search only** (via `/api/geocode`); the old manual `lat,lng` entry
+was removed, so a place always carries an IANA timezone.
 
 UI: `app/page.tsx` → `components/StarMapApp.tsx` (client orchestrator) →
-`InputForm.tsx` (+ `CitySearch.tsx`) + `SkyOptions.tsx` + `PosterCanvas.tsx`.
-`app/globals.css` holds theme CSS vars. On "Render", StarMapApp renders the sky **twice**
+`InputForm.tsx` (+ `CitySearch.tsx`) + `SkyOptions.tsx` (+ `AboutArt.tsx` attribution
+modal, Free Art License) + `PosterCanvas.tsx`. `app/globals.css` holds theme CSS vars.
+Constellation art is listed first; Milky Way defaults **off**. On "Render", StarMapApp renders the sky **twice**
 off-screen (poster + wallpaper, wallpaper larger), **snapshots each** into a detached
 canvas, and composes both; `PosterCanvas` shows them behind **Poster / Wallpaper tabs**
 (both canvases stay mounted, so switching tabs never re-renders). Each tab has a **size
@@ -178,7 +179,7 @@ on both outputs and supports **multiple switchable sets** (skycultures).
 
 Users type a **city name** and pick from debounced suggestions; the resolved IANA
 **timezone** is what makes local→UTC correct (the whole point — a wrong instant
-rotates the sky). Manual `lat, lng` entry stays as a secondary fallback.
+rotates the sky). City search is the only location input (manual coords removed).
 
 - **Providers** (server-side only, free, keyless): **Open-Meteo** geocoding is
   primary (returns name/admin/country/lat/lng **and** `timezone`). **Nominatim
@@ -195,8 +196,9 @@ rotates the sky). Manual `lat, lng` entry stays as a secondary fallback.
 - **Timezone → UTC** (`lib/time/localToUtc.ts`, no date library — uses `Intl` +
   tzdata): `zonedWallClockToUtc(...)` inverts the zone offset (with a DST-refinement
   pass); `resolveInstant(wall, tz)` returns the absolute instant — the chosen zone
-  when known, else **treats the wall clock as UTC** (manual-coords fallback; the UI
-  notes it). `InputForm` resolves the instant and passes it to `renderStarMap`, whose
+  when known, else treats the wall clock as UTC (defensive fallback; unreachable now
+  that a city — always with a tz — is required). `InputForm` resolves the instant and
+  passes it to `renderStarMap`, whose
   `opts.date` is now the **absolute UTC instant** (it sets d3-celestial's `timezone`
   to the browser offset to render at that instant unshifted — see renderStarMap).
 - **Attribution**: a persistent footer credits Open-Meteo (courtesy) and
@@ -212,7 +214,7 @@ rotates the sky). Manual `lat, lng` entry stays as a secondary fallback.
 compose, PNG export.
 
 **Done (M1.5):** city search geocoding (`/api/geocode`, Open-Meteo + Nominatim),
-debounced autocomplete, manual-coords fallback, timezone→UTC correctness, attribution.
+debounced autocomplete (city-only), timezone→UTC correctness, attribution.
 
 **Done (dual output + sizes + sky toggles):** Poster / Wallpaper tabs — framed poster
 (4 print sizes: 21×30 / 30×40 / 40×50 / 50×70 cm) and a full-bleed phone wallpaper

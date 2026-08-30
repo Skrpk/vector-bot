@@ -30,7 +30,7 @@ const WATERMARK = '@vector_2049_bot';
 const POSTER_TITLE = 'THE NIGHT SKY';
 
 const DEFAULT_SKY_OPTIONS: SkyOptions = {
-  milkyWay: true,
+  milkyWay: false,
   constellations: true,
   constellationNames: false,
   constellationArt: false,
