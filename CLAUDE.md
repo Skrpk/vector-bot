@@ -78,30 +78,36 @@ loads data over HTTP from `datapath`). We do **not** bundle it through the compi
 - `renderStarMap(container, { date, lat, lng, theme, size?, background?, milkyWay?,
 constellations?, constellationNames? }) => Promise<HTMLCanvasElement>` — takes a
   **container element** (d3-celestial owns its own canvas), returns that canvas.
-  `background`: `'sky'` (opaque) | `'transparent'`. The three sky toggles (all default
-  true, names false) map to d3-celestial's `mw.show` / `constellations.lines` /
-  `constellations.names` (`namesType:'uk'`, Ukrainian). A faint graticule is always drawn.
+  `background`: `'sky'` (opaque) | `'transparent'`; `bgColor` = fill hex (see `BG_COLORS`).
+  The three sky toggles (all default true, names false) map to d3-celestial's `mw.show` /
+  `constellations.lines` / `constellations.names` (`namesType:'uk'`, Ukrainian). A faint
+  graticule is always drawn.
   **Before resolving it polls the canvas until it holds painted content** (`> 5` bright
   cells in a 48×48 downscale) — the first redraw callback can fire before the star catalog
   is painted (notably on a 2nd back-to-back render when data is cached).
-- `composePoster(canvas, { starMapCanvas, title, subtitle, watermark, theme, width,
-height })` — draws the framed circular-sky poster at `width`×`height`. Layout scales
-  with width (constants in `LAYOUT`). **`POSTER_SIZES`** = the 4 print sizes (21×30 /
+- `composePoster(canvas, { starMapCanvas, title, subtitle, watermark, theme, background,
+scrim?, width, height })` — draws the framed circular-sky poster at `width`×`height`
+  (`background` = fill hex; `scrim` draws a fading dark backdrop behind the text). Layout
+  scales with width (constants in `LAYOUT`). **`POSTER_SIZES`** = the 4 print sizes (21×30 /
   30×40 / 40×50 / 50×70 cm) → pixel dims at ~150 DPI, long edge capped at 4096 (mobile-
   safe); `DEFAULT_POSTER_SIZE_ID = '21x30'`; `posterSizeById(id)`.
-- `composeWallpaper(canvas, { starMapCanvas, place, date, watermark, width, height })` —
-  draws a full-bleed phone wallpaper at `width`×`height`: **same dark sky + stars +
-  constellation lines as the poster** + **white text**, sky scaled to **cover the whole
-  frame** (source disc enlarged past the frame diagonal so stars reach every edge).
+- `composeWallpaper(canvas, { starMapCanvas, place, date, watermark, background, scrim?,
+width, height })` — draws a full-bleed phone wallpaper at `width`×`height`: **same dark
+  sky + stars + constellation lines as the poster** + **white text**, sky scaled to
+  **cover the whole frame** (source disc enlarged past the frame diagonal so stars reach
+  every edge).
   **`WALLPAPER_SIZES`** = popular aspect ratios (9:16, 9:20, 9:19.5, 9:21) covering most
   devices; `DEFAULT_WALLPAPER_SIZE_ID = '9x195'`; `wallpaperSizeById(id)`. Feed it a
   `background:'sky'` render (rendered larger, ~1600, for crispness).
 - `exportPng(canvas, filename) => Promise<void>` — `canvas.toBlob()` download.
 - `celestial-config.ts` — the dark, clean d3-celestial config (airy projection,
-  zenith-centered local sky), parameterised by `background` + the three sky toggles.
-  `types.ts` —
-  `Theme`, `RenderOptions`, `PosterOptions`, `PosterSize`, `WallpaperOptions`,
-  `WallpaperSize`, `SkyBackground`, `SkyOptions`.
+  zenith-centered local sky), parameterised by `background`, `bgColor` + the three sky
+  toggles. Exports **`BG_COLORS`** (`space` #0b1020 / `black` #000000),
+  `DEFAULT_BG_COLOR_ID`, `bgColorById`. `types.ts` — `Theme`, `RenderOptions`,
+  `PosterOptions`, `PosterSize`, `WallpaperOptions`, `WallpaperSize`, `SkyBackground`,
+  `SkyOptions`.
+- `scrim.ts` — `drawTextScrim(...)`: an elliptical radial gradient (dark → transparent)
+  drawn behind the text so it doesn't mix with constellation names.
 - `constellations-uk.json` — IAU Latin name → Ukrainian constellation name (89 entries),
   consumed by the copy script.
 
@@ -122,9 +128,12 @@ off-screen (poster + wallpaper, wallpaper larger), **snapshots each** into a det
 canvas, and composes both; `PosterCanvas` shows them behind **Poster / Wallpaper tabs**
 (both canvases stay mounted, so switching tabs never re-renders). Each tab has a **size
 selector** (recomposes from the cached snapshot — no re-render). `SkyOptions` holds the
-three **shared toggles** (Milky Way / Constellations / Constellation names) applied to
-_both_ outputs; toggling one **re-renders** both skies (pixels change) from the last
-inputs (`lastPayloadRef`). Download exports the active tab with its size in the name
+three **shared toggles** (Milky Way / Constellations / Constellation names) plus the
+**background colour** (Deep space / Black), all applied to _both_ outputs; changing any
+**re-renders** both skies (pixels change) from the last inputs (`lastPayloadRef`). When
+names are on, the compose step draws a fading dark **scrim** behind the text; the chosen
+`background`+`scrim` are stored in each output's meta so size-recompose stays consistent.
+Download exports the active tab with its size in the name
 (`star-map-<date>-<size>.png` / `star-wallpaper-<date>-<ratio>.png`).
 
 ## Geocoding + timezone (Milestone 1.5)
@@ -171,7 +180,9 @@ debounced autocomplete, manual-coords fallback, timezone→UTC correctness, attr
 (4 print sizes: 21×30 / 30×40 / 40×50 / 50×70 cm) and a full-bleed phone wallpaper
 (4 aspect ratios: 9:16 / 9:20 / 9:19.5 / 9:21). Size changes recompose instantly from a
 cached snapshot. Three shared **Sky options** toggles (Milky Way, Constellations,
-Constellation names in **Ukrainian**) apply to both outputs and re-render on change.
+Constellation names in **Ukrainian**) plus a **background colour** switch (Deep space /
+Black) apply to both outputs and re-render on change; a fading text scrim keeps the
+city+date legible when names are on.
 `// TODO(milestone-2)`: true 300-DPI "HD" export behind the paid tier.
 
 **NOT built yet — Milestone 2 (marked `// TODO(milestone-2)` in code):**
