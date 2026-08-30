@@ -267,6 +267,9 @@ export default function StarMapApp() {
       <header className="app__header">
         <h1>Star Map Poster</h1>
         <p>The sky exactly as it looked at your date and place.</p>
+        <a href="https://t.me/vector_space2035" target="_blank" rel="noopener noreferrer">
+          @vector_space2035
+        </a>
       </header>
 
       <InputForm
