@@ -239,6 +239,47 @@ body {
   align-self: flex-start;
 }
 
+/* --- Sky options (shared toggles) --- */
+.skyopts {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  padding: 12px 16px 14px;
+  margin: 0;
+}
+
+.skyopts__legend {
+  font-size: 13px;
+  color: var(--muted);
+  padding: 0 6px;
+}
+
+.skyopts__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+}
+
+.skyopts__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.skyopts__item input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.skyopts[disabled] {
+  opacity: 0.6;
+}
+
 /* --- Output preview (tabbed) --- */
 .poster {
   display: flex;

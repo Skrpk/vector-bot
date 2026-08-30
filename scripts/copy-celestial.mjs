@@ -13,7 +13,7 @@
 // Its bundled data (Hipparcos/Yale-derived catalogs) is public domain.
 
 import { existsSync } from 'node:fs';
-import { cp, mkdir, rm } from 'node:fs/promises';
+import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -54,7 +54,51 @@ async function main() {
     await cp(join(src, rel), join(dest, rel), { recursive: true });
   }
 
+  await injectUkrainianNames();
+  await registerUkrainianLang();
+
   console.log(`[copy-celestial] Copied d3-celestial assets -> ${dest}`);
+}
+
+// d3-celestial validates `constellations.namesType` against its built-in language
+// table and silently resets anything unknown (e.g. our "uk") to English. That
+// table lives in the minified build, so we register "uk" there. The marker
+// `tr:"Turkish"}` ends each language table; appending to all is harmless (only the
+// constellations table is used with namesType:"uk").
+async function registerUkrainianLang() {
+  const p = join(dest, 'celestial.min.js');
+  const js = await readFile(p, 'utf8');
+  const marker = 'tr:"Turkish"}';
+  if (!js.includes(marker)) {
+    console.warn('[copy-celestial] language marker not found — "uk" not registered');
+    return;
+  }
+  const patched = js.split(marker).join('tr:"Turkish",uk:"Ukrainian"}');
+  await writeFile(p, patched);
+  console.log('[copy-celestial] Registered Ukrainian (uk) in celestial language table');
+}
+
+// d3-celestial's constellations.json ships ~20 languages but not Ukrainian. We add
+// a `uk` field per constellation (from lib/sky/constellations-uk.json) so the app
+// can render Ukrainian names via `constellations.namesType: 'uk'`. Runs on every
+// copy, so it survives the regeneration of the gitignored public/celestial dir.
+async function injectUkrainianNames() {
+  const namesPath = join(root, 'lib', 'sky', 'constellations-uk.json');
+  const dataPath = join(dest, 'data', 'constellations.json');
+  const uk = JSON.parse(await readFile(namesPath, 'utf8'));
+  const geo = JSON.parse(await readFile(dataPath, 'utf8'));
+
+  let missing = 0;
+  for (const feature of geo.features) {
+    const name = feature.properties?.name;
+    if (name && uk[name]) feature.properties.uk = uk[name];
+    else missing++;
+  }
+  if (missing > 0) {
+    console.warn(`[copy-celestial] ${missing} constellation(s) had no Ukrainian name`);
+  }
+  await writeFile(dataPath, JSON.stringify(geo));
+  console.log('[copy-celestial] Injected Ukrainian constellation names (uk)');
 }
 
 main().catch((err) => {

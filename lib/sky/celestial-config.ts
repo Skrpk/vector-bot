@@ -1,6 +1,6 @@
 import type { CelestialConfig } from './celestial-loader';
 import { CELESTIAL_DATA_PATH } from './celestial-loader';
-import type { SkyBackground, SkyLayers } from './types';
+import type { SkyBackground } from './types';
 
 /**
  * Fixed deep-space background for the sky itself. We keep the *sky* dark
@@ -14,19 +14,22 @@ interface BuildArgs {
   size: number;
   lat: number;
   lng: number;
-  /** 'sky' (opaque, poster) or 'transparent' (wallpaper). Default 'sky'. */
+  /** 'sky' (opaque) or 'transparent'. Default 'sky'. */
   background?: SkyBackground;
-  /** 'full' (poster) or 'stars' (wallpaper: no constellation lines / grid). */
-  layers?: SkyLayers;
+  /** Toggle the Milky Way band. Default true. */
+  milkyWay?: boolean;
+  /** Toggle constellation connection lines. Default true. */
+  constellations?: boolean;
+  /** Toggle constellation names (Ukrainian). Default false. */
+  constellationNames?: boolean;
 }
 
 /**
  * A clean d3-celestial configuration: local sky centered on the zenith (airy
- * projection = horizon-to-horizon circular view), white stars in spectral colours,
- * a faint Milky Way. `background`/`layers` tailor it per output:
- *  - poster:    opaque sky + constellation lines + graticule ('sky' / 'full')
- *  - wallpaper: transparent + stars only ('transparent' / 'stars')
- * Non-interactive and animation-free so it renders a single deterministic frame.
+ * projection = horizon-to-horizon circular view), white stars in spectral colours.
+ * The Milky Way, constellation lines and constellation names are user-toggleable
+ * (see SkyOptions); a faint graticule is always drawn. Non-interactive and
+ * animation-free so it renders a single deterministic frame.
  */
 export function buildCelestialConfig({
   containerId,
@@ -34,10 +37,13 @@ export function buildCelestialConfig({
   lat,
   lng,
   background = 'sky',
-  layers = 'full',
+  milkyWay = true,
+  constellations = true,
+  constellationNames = false,
 }: BuildArgs): CelestialConfig {
   const transparent = background === 'transparent';
-  const starsOnly = layers === 'stars';
+  // Constellation-name font scales with the render size (CSS-px space ≈ `size`).
+  const namePx = Math.round((size / 1000) * 16);
 
   return {
     container: containerId,
@@ -72,20 +78,28 @@ export function buildCelestialConfig({
     planets: { show: false },
 
     constellations: {
-      names: false,
-      lines: !starsOnly,
+      names: constellationNames,
+      namesType: 'uk', // Ukrainian names injected into constellations.json
+      nameStyle: {
+        fill: '#dfe6ff',
+        font: `${namePx}px 'Helvetica Neue', Arial, sans-serif`,
+        align: 'center',
+        baseline: 'middle',
+        opacity: 0.9,
+      },
+      lines: constellations,
       bounds: false,
       lineStyle: { stroke: '#7d8bbd', width: 0.7, opacity: 0.55 },
     },
 
     mw: {
-      show: true,
+      show: milkyWay,
       style: { fill: '#ffffff', opacity: transparent ? 0.12 : 0.07 },
     },
 
     lines: {
       graticule: {
-        show: !starsOnly,
+        show: true,
         stroke: '#2a3352',
         width: 0.5,
         opacity: 0.5,

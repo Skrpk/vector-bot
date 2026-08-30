@@ -23,11 +23,18 @@ export interface Theme {
 /** Sky background: opaque deep-space colour (poster) or transparent (wallpaper). */
 export type SkyBackground = 'sky' | 'transparent';
 
-/** Which sky layers to draw: everything, or just the stars (+ faint Milky Way). */
-export type SkyLayers = 'full' | 'stars';
+/** User-toggleable sky layers, shared by the poster and wallpaper outputs. */
+export interface SkyOptions {
+  /** Draw the Milky Way band. */
+  milkyWay: boolean;
+  /** Draw constellation connection lines. */
+  constellations: boolean;
+  /** Draw constellation names (Ukrainian). */
+  constellationNames: boolean;
+}
 
 /** Inputs to renderStarMap. */
-export interface RenderOptions {
+export interface RenderOptions extends Partial<SkyOptions> {
   /**
    * The absolute UTC instant the sky is drawn for. Callers must resolve the
    * user's local wall-clock + timezone → UTC first (lib/time/localToUtc.ts).
@@ -42,8 +49,7 @@ export interface RenderOptions {
   size?: number;
   /** Sky background fill. Defaults to 'sky' (opaque). */
   background?: SkyBackground;
-  /** Sky layers. Defaults to 'full' (stars + constellations + grid). */
-  layers?: SkyLayers;
+  // milkyWay / constellations / constellationNames come from Partial<SkyOptions>.
 }
 
 /** A selectable poster print size and its export pixel dimensions. */
