@@ -38,8 +38,16 @@ export function renderStarMap(
   opts: RenderOptions
 ): Promise<HTMLCanvasElement> {
   const size = opts.size ?? DEFAULT_SIZE;
-  const { date, lat, lng, background, milkyWay, constellations, constellationNames } =
-    opts;
+  const {
+    date,
+    lat,
+    lng,
+    background,
+    bgColor,
+    milkyWay,
+    constellations,
+    constellationNames,
+  } = opts;
 
   if (!container.id) container.id = 'celestial-map';
   container.style.width = `${size}px`;
@@ -54,6 +62,7 @@ export function renderStarMap(
           lat,
           lng,
           background,
+          bgColor,
           milkyWay,
           constellations,
           constellationNames,

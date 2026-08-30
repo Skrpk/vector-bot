@@ -47,8 +47,10 @@ export interface RenderOptions extends Partial<SkyOptions> {
   theme: Theme;
   /** Square pixel size of the rendered sky canvas. Defaults to 1000. */
   size?: number;
-  /** Sky background fill. Defaults to 'sky' (opaque). */
+  /** Sky background fill mode. Defaults to 'sky' (opaque). */
   background?: SkyBackground;
+  /** Background fill colour (hex), e.g. deep-space navy or black. */
+  bgColor?: string;
   // milkyWay / constellations / constellationNames come from Partial<SkyOptions>.
 }
 
@@ -73,6 +75,10 @@ export interface PosterOptions {
   subtitle: string;
   watermark: string;
   theme: Theme;
+  /** Poster background fill colour (hex) — matches the sky background. */
+  background: string;
+  /** Draw a fading dark scrim behind the text (used when names are on). */
+  scrim?: boolean;
   /** Export pixel width (from the selected PosterSize). */
   width: number;
   /** Export pixel height (from the selected PosterSize). */
@@ -102,6 +108,10 @@ export interface WallpaperOptions {
   /** Human-readable date/time line. */
   date: string;
   watermark: string;
+  /** Wallpaper background fill colour (hex) — matches the sky background. */
+  background: string;
+  /** Draw a fading dark scrim behind the text (used when names are on). */
+  scrim?: boolean;
   /** Export pixel width (from the selected WallpaperSize). */
   width: number;
   /** Export pixel height (from the selected WallpaperSize). */

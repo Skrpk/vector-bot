@@ -1,4 +1,4 @@
-import { SKY_BACKGROUND } from './celestial-config';
+import { drawTextScrim } from './scrim';
 import type { WallpaperOptions, WallpaperSize } from './types';
 
 /**
@@ -45,7 +45,7 @@ export function composeWallpaper(
   canvas: HTMLCanvasElement,
   opts: WallpaperOptions
 ): void {
-  const { starMapCanvas, place, date, watermark, width: W, height: H } = opts;
+  const { starMapCanvas, place, date, watermark, background, width: W, height: H } = opts;
   const s = W / LAYOUT.refWidth; // scale type with width
 
   canvas.width = W;
@@ -53,8 +53,8 @@ export function composeWallpaper(
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('2D context unavailable');
 
-  // Dark sky background — same colour as the poster's sky.
-  ctx.fillStyle = SKY_BACKGROUND;
+  // Dark sky background — the chosen sky colour.
+  ctx.fillStyle = background;
   ctx.fillRect(0, 0, W, H);
 
   // Cover the whole frame. The source is a circular sky disc inscribed in a
@@ -68,22 +68,41 @@ export function composeWallpaper(
   const dy = (H - dest) / 2;
   ctx.drawImage(starMapCanvas, sx, sy, src, src, dx, dy, dest, dest);
 
-  // White text with a soft shadow so it stays legible over stars / light screens.
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'alphabetic';
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
-  ctx.shadowBlur = 18 * s;
   const maxTextWidth = W * 0.86;
   const cx = W / 2;
   const placeY = H * LAYOUT.placeYRatio;
+  const dateY = placeY + LAYOUT.dateGap * s;
+  const placeFont = `600 ${LAYOUT.placePx * s}px ${LAYOUT.font}`;
+  const dateFont = `400 ${LAYOUT.datePx * s}px ${LAYOUT.font}`;
+
+  ctx.textAlign = 'center';
+
+  // Fading dark scrim behind place + date so they don't mix with constellation names.
+  if (opts.scrim) {
+    ctx.textBaseline = 'alphabetic';
+    ctx.font = placeFont;
+    const placeW = Math.min(maxTextWidth, ctx.measureText(place).width);
+    ctx.font = dateFont;
+    const dateW = Math.min(maxTextWidth, ctx.measureText(date).width);
+    const top = placeY - LAYOUT.placePx * s;
+    const bottom = dateY + LAYOUT.datePx * s * 0.3;
+    const halfW = Math.max(placeW, dateW) / 2 + 48 * s;
+    const halfH = (bottom - top) / 2 + 34 * s;
+    drawTextScrim(ctx, cx, (top + bottom) / 2, halfW, halfH, background);
+  }
+
+  // White text with a soft shadow so it stays legible over stars / light screens.
+  ctx.textBaseline = 'alphabetic';
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
+  ctx.shadowBlur = 18 * s;
 
   ctx.fillStyle = '#ffffff';
-  ctx.font = `600 ${LAYOUT.placePx * s}px ${LAYOUT.font}`;
+  ctx.font = placeFont;
   ctx.fillText(place, cx, placeY, maxTextWidth);
 
-  ctx.font = `400 ${LAYOUT.datePx * s}px ${LAYOUT.font}`;
+  ctx.font = dateFont;
   ctx.globalAlpha = 0.85;
-  ctx.fillText(date, cx, placeY + LAYOUT.dateGap * s, maxTextWidth);
+  ctx.fillText(date, cx, dateY, maxTextWidth);
   ctx.globalAlpha = 1;
 
   // Watermark near the bottom.

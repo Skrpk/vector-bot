@@ -280,6 +280,29 @@ body {
   opacity: 0.6;
 }
 
+.skyopts__bg {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.skyopts__bg-label {
+  font-size: 14px;
+  color: var(--text);
+}
+
+.skyopts__swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  margin-right: 7px;
+  vertical-align: -1px;
+}
+
 /* --- Output preview (tabbed) --- */
 .poster {
   display: flex;

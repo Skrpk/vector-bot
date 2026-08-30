@@ -3,11 +3,23 @@ import { CELESTIAL_DATA_PATH } from './celestial-loader';
 import type { SkyBackground } from './types';
 
 /**
- * Fixed deep-space background for the sky itself. We keep the *sky* dark
- * regardless of the app theme — a light-coloured sky reads poorly and hides the
- * stars. The surrounding poster chrome still follows the theme (see composePoster).
+ * Selectable sky background colours. We keep the sky dark regardless of the app
+ * theme — a light sky hides the stars. 'space' is the default deep-space navy.
  */
-export const SKY_BACKGROUND = '#0b1020';
+export const BG_COLORS = {
+  space: '#0b1020',
+  black: '#000000',
+} as const;
+
+export type BgColorId = keyof typeof BG_COLORS;
+export const DEFAULT_BG_COLOR_ID: BgColorId = 'space';
+
+export function bgColorById(id: string): string {
+  return BG_COLORS[(id as BgColorId) in BG_COLORS ? (id as BgColorId) : 'space'];
+}
+
+/** Back-compat default background colour. */
+export const SKY_BACKGROUND = BG_COLORS.space;
 
 interface BuildArgs {
   containerId: string;
@@ -16,6 +28,8 @@ interface BuildArgs {
   lng: number;
   /** 'sky' (opaque) or 'transparent'. Default 'sky'. */
   background?: SkyBackground;
+  /** Background fill colour (hex). Defaults to the deep-space navy. */
+  bgColor?: string;
   /** Toggle the Milky Way band. Default true. */
   milkyWay?: boolean;
   /** Toggle constellation connection lines. Default true. */
@@ -37,6 +51,7 @@ export function buildCelestialConfig({
   lat,
   lng,
   background = 'sky',
+  bgColor = SKY_BACKGROUND,
   milkyWay = true,
   constellations = true,
   constellationNames = false,
@@ -60,7 +75,7 @@ export function buildCelestialConfig({
     settimezone: false, // avoid remote TimeZoneDB lookups; sky uses absolute time
     // opacity 0 → each redraw's clearRect leaves the canvas transparent (stars
     // and Milky Way still draw on top). Opaque deep-space colour otherwise.
-    background: { fill: SKY_BACKGROUND, opacity: transparent ? 0 : 1 },
+    background: { fill: bgColor, opacity: transparent ? 0 : 1 },
 
     stars: {
       show: true,

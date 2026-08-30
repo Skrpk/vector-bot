@@ -9,6 +9,7 @@ import {
   DEFAULT_POSTER_SIZE_ID,
   posterSizeById,
 } from '@/lib/sky/composePoster';
+import { bgColorById, DEFAULT_BG_COLOR_ID } from '@/lib/sky/celestial-config';
 import {
   composeWallpaper,
   DEFAULT_WALLPAPER_SIZE_ID,
@@ -56,6 +57,7 @@ export default function StarMapApp() {
   const [posterSizeId, setPosterSizeId] = useState(DEFAULT_POSTER_SIZE_ID);
   const [wallpaperSizeId, setWallpaperSizeId] = useState(DEFAULT_WALLPAPER_SIZE_ID);
   const [skyOptions, setSkyOptions] = useState<SkyOptions>(DEFAULT_SKY_OPTIONS);
+  const [bgColorId, setBgColorId] = useState<string>(DEFAULT_BG_COLOR_ID);
   const fileStampRef = useRef<string | null>(null);
   // Last inputs, so toggling a sky option can re-render without re-entering the form.
   const lastPayloadRef = useRef<GeneratePayload | null>(null);
@@ -66,12 +68,16 @@ export default function StarMapApp() {
     title: string;
     subtitle: string;
     watermark: string;
+    background: string;
+    scrim: boolean;
   } | null>(null);
   const wallpaperSkyRef = useRef<HTMLCanvasElement | null>(null);
   const wallpaperMetaRef = useRef<{
     place: string;
     date: string;
     watermark: string;
+    background: string;
+    scrim: boolean;
   } | null>(null);
 
   useEffect(() => {
@@ -119,19 +125,25 @@ export default function StarMapApp() {
     });
   }, [wallpaperSizeId]);
 
-  const handleGenerate = async (payload: GeneratePayload, opts: SkyOptions) => {
+  const handleGenerate = async (
+    payload: GeneratePayload,
+    opts: SkyOptions,
+    bgId: string
+  ) => {
     if (!skyRef.current || !posterRef.current || !wallpaperRef.current) return;
     lastPayloadRef.current = payload;
     setLoading(true);
     setCanDownload(false);
     setStatus('Rendering the sky…');
 
+    const bg = bgColorById(bgId);
     const common = {
       date: payload.date,
       lat: payload.lat,
       lng: payload.lng,
       theme,
       size: SKY_SIZE,
+      bgColor: bg,
       ...opts, // milkyWay / constellations / constellationNames (shared by both)
     };
 
@@ -145,6 +157,8 @@ export default function StarMapApp() {
         title: POSTER_TITLE,
         subtitle: `${payload.displayDate}\n${payload.label}`,
         watermark: WATERMARK,
+        background: bg,
+        scrim: opts.constellationNames,
       };
       const size = posterSizeById(posterSizeId);
       composePoster(posterRef.current, {
@@ -167,6 +181,8 @@ export default function StarMapApp() {
         place: payload.label,
         date: payload.displayDate,
         watermark: WATERMARK,
+        background: bg,
+        scrim: opts.constellationNames,
       };
       const wSize = wallpaperSizeById(wallpaperSizeId);
       composeWallpaper(wallpaperRef.current, {
@@ -194,7 +210,17 @@ export default function StarMapApp() {
   const handleSkyOptionChange = (key: keyof SkyOptions, value: boolean) => {
     const next = { ...skyOptions, [key]: value };
     setSkyOptions(next);
-    if (lastPayloadRef.current) void handleGenerate(lastPayloadRef.current, next);
+    if (lastPayloadRef.current) {
+      void handleGenerate(lastPayloadRef.current, next, bgColorId);
+    }
+  };
+
+  // Background colour also changes the rendered sky, so it re-renders too.
+  const handleBgColorChange = (id: string) => {
+    setBgColorId(id);
+    if (lastPayloadRef.current) {
+      void handleGenerate(lastPayloadRef.current, skyOptions, id);
+    }
   };
 
   const handleDownload = async () => {
@@ -221,13 +247,15 @@ export default function StarMapApp() {
 
       <InputForm
         disabled={loading}
-        onGenerate={(payload) => handleGenerate(payload, skyOptions)}
+        onGenerate={(payload) => handleGenerate(payload, skyOptions, bgColorId)}
       />
 
       <SkyOptionsControls
         value={skyOptions}
+        bgColorId={bgColorId}
         disabled={loading}
         onChange={handleSkyOptionChange}
+        onBgColorChange={handleBgColorChange}
       />
 
       <PosterCanvas

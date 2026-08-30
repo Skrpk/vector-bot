@@ -1,3 +1,4 @@
+import { drawTextScrim } from './scrim';
 import type { PosterOptions, PosterSize } from './types';
 
 /**
@@ -60,7 +61,8 @@ const LAYOUT = {
  * its own dark background. Layout scales with the poster width.
  */
 export function composePoster(canvas: HTMLCanvasElement, opts: PosterOptions): void {
-  const { starMapCanvas, title, subtitle, watermark, theme, width, height } = opts;
+  const { starMapCanvas, title, subtitle, watermark, theme, background, width, height } =
+    opts;
   const s = width / LAYOUT.refWidth; // scale factor vs the reference width
   const margin = LAYOUT.margin * s;
   const maxTextWidth = width - margin * 2;
@@ -70,8 +72,8 @@ export function composePoster(canvas: HTMLCanvasElement, opts: PosterOptions): v
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('2D context unavailable');
 
-  // Background
-  ctx.fillStyle = theme.background;
+  // Background (chosen sky colour)
+  ctx.fillStyle = background;
   ctx.fillRect(0, 0, width, height);
 
   // Sky circle geometry
@@ -111,19 +113,42 @@ export function composePoster(canvas: HTMLCanvasElement, opts: PosterOptions): v
   ctx.stroke();
   ctx.globalAlpha = 1;
 
-  // Title
+  // Text block geometry
   const textTop = cy + radius + LAYOUT.titleGap * s;
+  const titleFont = `600 ${LAYOUT.titlePx * s}px ${LAYOUT.font}`;
+  const subFont = `400 ${LAYOUT.subtitlePx * s}px ${LAYOUT.font}`;
+  const subLines = subtitle.split('\n');
+  const subFirstY = textTop + LAYOUT.subtitleTop * s;
+  const blockBottom =
+    subFirstY + (subLines.length - 1) * LAYOUT.lineGap * s + LAYOUT.subtitlePx * s;
+
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
+
+  // Fading dark scrim behind the text (so it doesn't mix with constellation names).
+  if (opts.scrim) {
+    ctx.font = titleFont;
+    const titleW = Math.min(maxTextWidth, ctx.measureText(title).width);
+    ctx.font = subFont;
+    const subW = Math.min(
+      maxTextWidth,
+      Math.max(0, ...subLines.map((l) => ctx.measureText(l).width))
+    );
+    const halfW = Math.max(titleW, subW) / 2 + 46 * s;
+    const halfH = (blockBottom - textTop) / 2 + 40 * s;
+    drawTextScrim(ctx, cx, (textTop + blockBottom) / 2, halfW, halfH, background);
+  }
+
+  // Title
   ctx.fillStyle = theme.text;
-  ctx.font = `600 ${LAYOUT.titlePx * s}px ${LAYOUT.font}`;
+  ctx.font = titleFont;
   ctx.fillText(title, cx, textTop, maxTextWidth);
 
   // Subtitle (supports "\n" for multiple lines)
   ctx.fillStyle = theme.muted;
-  ctx.font = `400 ${LAYOUT.subtitlePx * s}px ${LAYOUT.font}`;
-  let y = textTop + LAYOUT.subtitleTop * s;
-  for (const line of subtitle.split('\n')) {
+  ctx.font = subFont;
+  let y = subFirstY;
+  for (const line of subLines) {
     ctx.fillText(line, cx, y, maxTextWidth);
     y += LAYOUT.lineGap * s;
   }
