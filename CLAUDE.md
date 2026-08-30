@@ -79,19 +79,23 @@ loads data over HTTP from `datapath`). We do **not** bundle it through the compi
   content** — the first redraw callback can fire before the star catalog is painted
   (notably on a 2nd back-to-back render when data is cached), which otherwise hands back an
   empty canvas.
-- `composePoster(canvas, { starMapCanvas, title, subtitle, watermark, theme })` —
-  draws the portrait 1080×1350 poster (framed circular sky on the theme background).
-  Layout constants in `POSTER`.
-- `composeWallpaper(canvas, { starMapCanvas, place, date, watermark })` — draws a
-  1290×2796 iPhone wallpaper: **same dark sky + stars + constellation lines as the
-  poster** + **white text**, sky scaled to **cover the whole frame** (source disc
-  enlarged past the frame diagonal so stars reach every edge). Layout constants in
-  `WALLPAPER`. Feed it a `background:'sky'`, `layers:'full'` render (rendered larger,
-  ~1600, for crispness).
+- `composePoster(canvas, { starMapCanvas, title, subtitle, watermark, theme, width,
+height })` — draws the framed circular-sky poster at `width`×`height`. Layout scales
+  with width (constants in `LAYOUT`). **`POSTER_SIZES`** = the 4 print sizes (21×30 /
+  30×40 / 40×50 / 50×70 cm) → pixel dims at ~150 DPI, long edge capped at 4096 (mobile-
+  safe); `DEFAULT_POSTER_SIZE_ID = '21x30'`; `posterSizeById(id)`.
+- `composeWallpaper(canvas, { starMapCanvas, place, date, watermark, width, height })` —
+  draws a full-bleed phone wallpaper at `width`×`height`: **same dark sky + stars +
+  constellation lines as the poster** + **white text**, sky scaled to **cover the whole
+  frame** (source disc enlarged past the frame diagonal so stars reach every edge).
+  **`WALLPAPER_SIZES`** = popular aspect ratios (9:16, 9:20, 9:19.5, 9:21) covering most
+  devices; `DEFAULT_WALLPAPER_SIZE_ID = '9x195'`; `wallpaperSizeById(id)`. Feed it a
+  `background:'sky'`, `layers:'full'` render (rendered larger, ~1600, for crispness).
 - `exportPng(canvas, filename) => Promise<void>` — `canvas.toBlob()` download.
 - `celestial-config.ts` — the dark, clean d3-celestial config (airy projection,
   zenith-centered local sky), parameterised by `background`/`layers`. `types.ts` —
-  `Theme`, `RenderOptions`, `PosterOptions`, `WallpaperOptions`, `SkyBackground`, `SkyLayers`.
+  `Theme`, `RenderOptions`, `PosterOptions`, `PosterSize`, `WallpaperOptions`,
+  `WallpaperSize`, `SkyBackground`, `SkyLayers`.
 
 `lib/telegram/`:
 
@@ -106,10 +110,12 @@ manual-entry fallback only (city search now goes through `/api/geocode`).
 UI: `app/page.tsx` → `components/StarMapApp.tsx` (client orchestrator) →
 `InputForm.tsx` (+ `CitySearch.tsx`) + `PosterCanvas.tsx`. `app/globals.css` holds
 theme CSS vars. On "Render", StarMapApp renders the sky **twice** off-screen (poster:
-sky/full; wallpaper: sky/full, larger) and composes both; `PosterCanvas`
-shows them behind **Poster / Wallpaper tabs** (both canvases stay mounted, so switching
-tabs never re-renders), and the Download button exports the active tab
-(`star-map-<date>.png` / `star-wallpaper-<date>.png`).
+sky/full; wallpaper: sky/full, larger), **snapshots each** into a detached canvas, and
+composes both; `PosterCanvas` shows them behind **Poster / Wallpaper tabs** (both canvases
+stay mounted, so switching tabs never re-renders). Each tab has a **size selector**;
+changing a size recomposes from the cached snapshot (no re-render). The Download button
+exports the active tab with its size in the name
+(`star-map-<date>-<size>.png` / `star-wallpaper-<date>-<ratio>.png`).
 
 ## Geocoding + timezone (Milestone 1.5)
 
@@ -151,9 +157,11 @@ compose, PNG export.
 **Done (M1.5):** city search geocoding (`/api/geocode`, Open-Meteo + Nominatim),
 debounced autocomplete, manual-coords fallback, timezone→UTC correctness, attribution.
 
-**Done (dual output):** Poster / Wallpaper tabs — framed 1080×1350 poster and a
-full-bleed 1290×2796 iPhone wallpaper (dark sky, stars + constellation lines, white
-text). Both composed on each render; the export downloads the active tab.
+**Done (dual output + sizes):** Poster / Wallpaper tabs — framed poster (4 print sizes:
+21×30 / 30×40 / 40×50 / 50×70 cm) and a full-bleed phone wallpaper (dark sky, stars +
+constellation lines, white text; 4 aspect ratios: 9:16 / 9:20 / 9:19.5 / 9:21). Size
+changes recompose instantly from a cached snapshot; the export downloads the active tab.
+`// TODO(milestone-2)`: true 300-DPI "HD" export behind the paid tier.
 
 **NOT built yet — Milestone 2 (marked `// TODO(milestone-2)` in code):**
 subscription / channel-membership gate (`getChatMember`), `initData` HMAC
