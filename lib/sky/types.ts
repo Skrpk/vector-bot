@@ -20,6 +20,12 @@ export interface Theme {
   accent: string;
 }
 
+/** Sky background: opaque deep-space colour (poster) or transparent (wallpaper). */
+export type SkyBackground = 'sky' | 'transparent';
+
+/** Which sky layers to draw: everything, or just the stars (+ faint Milky Way). */
+export type SkyLayers = 'full' | 'stars';
+
 /** Inputs to renderStarMap. */
 export interface RenderOptions {
   /**
@@ -34,6 +40,10 @@ export interface RenderOptions {
   theme: Theme;
   /** Square pixel size of the rendered sky canvas. Defaults to 1000. */
   size?: number;
+  /** Sky background fill. Defaults to 'sky' (opaque). */
+  background?: SkyBackground;
+  /** Sky layers. Defaults to 'full' (stars + constellations + grid). */
+  layers?: SkyLayers;
 }
 
 /** Inputs to composePoster. */
@@ -43,4 +53,17 @@ export interface PosterOptions {
   subtitle: string;
   watermark: string;
   theme: Theme;
+}
+
+/**
+ * Inputs to composeWallpaper. No theme: the wallpaper is white text on the same
+ * dark sky (stars + constellation lines) as the poster (see composeWallpaper).
+ */
+export interface WallpaperOptions {
+  starMapCanvas: HTMLCanvasElement;
+  /** Place name, e.g. "Prague, Prague, Czechia". */
+  place: string;
+  /** Human-readable date/time line. */
+  date: string;
+  watermark: string;
 }

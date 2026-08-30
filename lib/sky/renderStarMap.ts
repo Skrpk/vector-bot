@@ -38,7 +38,7 @@ export function renderStarMap(
   opts: RenderOptions
 ): Promise<HTMLCanvasElement> {
   const size = opts.size ?? DEFAULT_SIZE;
-  const { date, lat, lng } = opts;
+  const { date, lat, lng, background, layers } = opts;
 
   if (!container.id) container.id = 'celestial-map';
   container.style.width = `${size}px`;
@@ -52,6 +52,8 @@ export function renderStarMap(
           size,
           lat,
           lng,
+          background,
+          layers,
         });
 
         let settled = false;
@@ -96,12 +98,16 @@ export function renderStarMap(
               reject(err instanceof Error ? err : new Error(String(err)));
               return;
             }
-            const canvas = container.querySelector('canvas');
+            const canvas = container.querySelector<HTMLCanvasElement>('canvas');
             if (!canvas) {
               reject(new Error('d3-celestial produced no canvas'));
               return;
             }
-            resolve(canvas as HTMLCanvasElement);
+            // The first redraw callback can fire before the star catalog is
+            // painted (notably on a second, back-to-back render when data is
+            // cached), which would hand back an empty canvas. Poll until the
+            // canvas actually holds bright content, then resolve.
+            waitForContent(canvas, resolve);
           }, 0);
         };
 
@@ -109,4 +115,35 @@ export function renderStarMap(
         celestial.display(config);
       })
   );
+}
+
+/** Cheap check: does a downscaled snapshot contain enough bright pixels (stars/
+ * lines)? Dark background and the faint boundary ring don't count. */
+function hasBrightContent(canvas: HTMLCanvasElement): boolean {
+  const s = document.createElement('canvas');
+  s.width = 48;
+  s.height = 48;
+  const ctx = s.getContext('2d');
+  if (!ctx) return true; // can't check → assume ready
+  ctx.clearRect(0, 0, 48, 48);
+  ctx.drawImage(canvas, 0, 0, 48, 48);
+  const data = ctx.getImageData(0, 0, 48, 48).data;
+  let bright = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] > 10 && (data[i] + data[i + 1] + data[i + 2]) / 3 > 80) bright++;
+  }
+  return bright > 20;
+}
+
+function waitForContent(
+  canvas: HTMLCanvasElement,
+  resolve: (c: HTMLCanvasElement) => void,
+  attempt = 0
+): void {
+  // ~3s ceiling (100 × 30ms); resolve anyway rather than hang.
+  if (attempt >= 100 || hasBrightContent(canvas)) {
+    resolve(canvas);
+    return;
+  }
+  setTimeout(() => waitForContent(canvas, resolve, attempt + 1), 30);
 }
