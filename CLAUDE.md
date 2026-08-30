@@ -59,6 +59,8 @@ loads data over HTTP from `datapath`). We do **not** bundle it through the compi
   `data/constellations.json` (from `lib/sky/constellations-uk.json`) and registers
   `uk:"Ukrainian"` in celestial.min.js's language table (d3-celestial otherwise resets
   an unknown `namesType` to English). So Ukrainian names survive the regen.
+- `scripts/build-constellation-art.mjs` (runs after copy-celestial via `prepare-assets`)
+  turns the Stellarium skyculture sources into runtime data — see "Constellation art".
 - `lib/sky/celestial-loader.ts` injects the three `<script>`s in order and resolves
   with `window.Celestial`. Browser-only, idempotent.
 - Rendered off-screen: `#celestial-map` (container) **must** have a sibling
@@ -75,9 +77,10 @@ loads data over HTTP from `datapath`). We do **not** bundle it through the compi
 
 `lib/sky/`:
 
-- `renderStarMap(container, { date, lat, lng, theme, size?, background?, milkyWay?,
-constellations?, constellationNames? }) => Promise<HTMLCanvasElement>` — takes a
-  **container element** (d3-celestial owns its own canvas), returns that canvas.
+- `renderStarMap(container, { date, lat, lng, theme, size?, background?, bgColor?,
+milkyWay?, constellations?, constellationNames?, art? }) => Promise<HTMLCanvasElement>`
+  — takes a **container element** (d3-celestial owns its own canvas), returns that canvas.
+  `art:{set,opacity?}` overlays constellation illustrations (see "Constellation art").
   `background`: `'sky'` (opaque) | `'transparent'`; `bgColor` = fill hex (see `BG_COLORS`).
   The three sky toggles (all default true, names false) map to d3-celestial's `mw.show` /
   `constellations.lines` / `constellations.names` (`namesType:'uk'`, Ukrainian). A faint
@@ -110,8 +113,15 @@ width, height })` — draws a full-bleed phone wallpaper at `width`×`height`: *
   `SkyOptions`.
 - `scrim.ts` — `drawTextScrim(...)`: an elliptical radial gradient (dark → transparent)
   drawn behind the text so it doesn't mix with constellation names.
+- `constellation-art.ts` — the artwork overlay: `ART_SETS`, `loadArtSet`,
+  `drawConstellationArt(canvas, mapProjection, {setId, opacity})`. Projects each
+  illustration's 3 anchor stars via `Celestial.mapProjection` (scale =
+  `canvas.width / (translate()[0]*2)`), solves the image→screen affine, and draws with
+  `destination-over` so art sits behind the stars; clipped to the sky disc.
 - `constellations-uk.json` — IAU Latin name → Ukrainian constellation name (89 entries),
   consumed by the copy script.
+- `constellation-art.generated.json` / `art-anchor-stars.generated.json` — **generated**
+  by `scripts/build-constellation-art.mjs` (committed; regenerated on prepare-assets).
 
 `lib/telegram/`:
 
@@ -130,13 +140,36 @@ off-screen (poster + wallpaper, wallpaper larger), **snapshots each** into a det
 canvas, and composes both; `PosterCanvas` shows them behind **Poster / Wallpaper tabs**
 (both canvases stay mounted, so switching tabs never re-renders). Each tab has a **size
 selector** (recomposes from the cached snapshot — no re-render). `SkyOptions` holds the
-three **shared toggles** (Milky Way / Constellations / Constellation names) plus the
-**background colour** (Deep space / Black), all applied to _both_ outputs; changing any
-**re-renders** both skies (pixels change) from the last inputs (`lastPayloadRef`). When
-names are on, the compose step draws a fading dark **scrim** behind the text; the chosen
-`background`+`scrim` are stored in each output's meta so size-recompose stays consistent.
-Download exports the active tab with its size in the name
-(`star-map-<date>-<size>.png` / `star-wallpaper-<date>-<ratio>.png`).
+**shared toggles** (Milky Way / Constellations / Constellation names / Constellation art
+
+- an "Art style" set selector when >1 set) plus the **background colour** (Deep space /
+  Black), all applied to _both_ outputs; changing any **re-renders** both skies (pixels
+  change) from the last inputs (`lastPayloadRef`). When
+  names are on, the compose step draws a fading dark **scrim** behind the text; the chosen
+  `background`+`scrim` are stored in each output's meta so size-recompose stays consistent.
+  Download exports the active tab with its size in the name
+  (`star-map-<date>-<size>.png` / `star-wallpaper-<date>-<ratio>.png`).
+
+## Constellation art (Stellarium-style overlay)
+
+Optional illustrations warped onto the constellations, toggled in Sky options; works
+on both outputs and supports **multiple switchable sets** (skycultures).
+
+- **Sources** (committed): `assets-src/skyculture-<set>/index.json` (Stellarium format:
+  each constellation's `image` has `size` + 3 `anchors` of `{pos:[x,y], hip}`) and the
+  illustrations in `public/constellation-art/<set>/*.png` (served at
+  `/constellation-art/<set>/<file>`). Currently one set: **modern** (85 images, ~2.2 MB).
+- **Build** (`scripts/build-constellation-art.mjs`): emits `lib/sky/*.generated.json` —
+  the per-set anchors (only for images actually shipped) and a `{hip:[ra,dec]}` map for
+  the anchor stars (resolved from `stars.14.json`). Runs after copy-celestial.
+- **Render**: `renderStarMap` with `art:{set}` renders the sky **transparent**, draws the
+  art behind the stars (`destination-over`, affine-warped per constellation, disc-clipped),
+  then fills the background behind it. Only constellations fully inside the disc are drawn.
+  Note: it's a 3-point **affine** placement (not Stellarium's mesh warp) — good, slightly
+  approximate for large/edge constellations.
+- **Add a set**: drop `assets-src/skyculture-<name>/index.json` +
+  `public/constellation-art/<name>/*.png`, rerun `npm run build-art`. The UI "Art style"
+  selector appears automatically once there's more than one set.
 
 ## Geocoding + timezone (Milestone 1.5)
 
@@ -182,10 +215,12 @@ debounced autocomplete, manual-coords fallback, timezone→UTC correctness, attr
 (4 print sizes: 21×30 / 30×40 / 40×50 / 50×70 cm) and a full-bleed phone wallpaper
 (4 aspect ratios: 9:16 / 9:20 / 9:19.5 / 9:21). Size changes recompose instantly from a
 cached snapshot. Three shared **Sky options** toggles (Milky Way, Constellations,
-Constellation names in **Ukrainian**) plus a **background colour** switch (Deep space /
-Black) apply to both outputs and re-render on change; a fading text scrim keeps the
-city+date legible when names are on.
-`// TODO(milestone-2)`: true 300-DPI "HD" export behind the paid tier.
+Constellation names in **Ukrainian**), a **background colour** switch (Deep space /
+Black), and a **constellation-art overlay** (Stellarium-style, switchable sets) all apply
+to both outputs and re-render on change; a fading text scrim keeps the city+date legible
+when names are on.
+`// TODO(milestone-2)`: true 300-DPI "HD" export behind the paid tier; art mesh-warp for
+edge-perfect accuracy; WebP art to cut asset size.
 
 **NOT built yet — Milestone 2 (marked `// TODO(milestone-2)` in code):**
 subscription / channel-membership gate (`getChatMember`), `initData` HMAC
