@@ -1,9 +1,17 @@
-import { buildCelestialConfig } from './celestial-config';
+import { buildCelestialConfig, SKY_BACKGROUND } from './celestial-config';
 import { loadCelestial } from './celestial-loader';
+import {
+  drawConstellationArt,
+  hasArtSets,
+  loadArtSet,
+  type SkyProjection,
+} from './constellation-art';
 import type { RenderOptions } from './types';
 
 const DEFAULT_SIZE = 1000;
 const RENDER_TIMEOUT_MS = 15000;
+// How long redraws must stay quiet before we treat a load/apply phase as done.
+const QUIET_MS = 320;
 
 /**
  * Render the night sky for a given date + location into `container` using
@@ -22,15 +30,18 @@ const RENDER_TIMEOUT_MS = 15000;
  * that sibling and reads them back when applying the view — without it, rendering
  * throws.
  *
- * Completion: d3-celestial fires `addCallback` after it loads the catalogs and
- * draws the first frame. We then apply the exact date + location via `skyview()`,
- * which redraws synchronously (animations are disabled); the canvas is final once
- * it returns.
+ * Completion — why it's not just "first redraw": d3-celestial loads each layer
+ * (stars, Milky Way, constellation lines, constellation NAMES) as a *separate*
+ * async fetch, and each one calls redraw() when it lands. Grabbing after the first
+ * redraw intermittently misses slow layers (names arrive last; on cached
+ * re-renders the order shifts). Instead we treat "redraws have been quiet for
+ * QUIET_MS" as "all layers painted": wait for quiet, apply the exact date via
+ * skyview(), wait for quiet again, then snapshot.
  *
  * Why we detach with a no-op instead of `null`: d3-celestial's `runCallback()`
  * unconditionally re-sets `hasCallback = true` *after* invoking the callback, so a
- * `null` callback makes every later redraw (planet load, skyview) call `null()` and
- * throw. A no-op keeps those redraws harmless.
+ * `null` callback makes every later redraw call `null()` and throw. A no-op keeps
+ * those redraws harmless.
  */
 const NOOP = () => {};
 export function renderStarMap(
@@ -38,7 +49,24 @@ export function renderStarMap(
   opts: RenderOptions
 ): Promise<HTMLCanvasElement> {
   const size = opts.size ?? DEFAULT_SIZE;
-  const { date, lat, lng } = opts;
+  const {
+    date,
+    lat,
+    lng,
+    background,
+    bgColor,
+    milkyWay,
+    constellations,
+    constellationNames,
+    art,
+  } = opts;
+
+  // Art needs to sit *behind* the stars, so we render the sky transparent, draw
+  // the illustrations with `destination-over`, then fill the background behind
+  // them. When art is off we keep the requested (usually opaque) background.
+  const artEnabled = !!art?.set && hasArtSets();
+  const effectiveBackground = artEnabled ? 'transparent' : background;
+  const fillColor = bgColor ?? SKY_BACKGROUND;
 
   if (!container.id) container.id = 'celestial-map';
   container.style.width = `${size}px`;
@@ -52,15 +80,18 @@ export function renderStarMap(
           size,
           lat,
           lng,
+          background: effectiveBackground,
+          bgColor,
+          milkyWay,
+          constellations,
+          constellationNames,
         });
 
-        let settled = false;
-        const timeout = setTimeout(() => {
-          if (settled) return;
-          settled = true;
-          detach();
-          reject(new Error('Star map render timed out'));
-        }, RENDER_TIMEOUT_MS);
+        let done = false;
+        let applied = false; // has skyview() been called yet?
+        let quietTimer: ReturnType<typeof setTimeout> | null = null;
+
+        const hardTimeout = setTimeout(() => finish(), RENDER_TIMEOUT_MS);
 
         function detach() {
           try {
@@ -71,15 +102,64 @@ export function renderStarMap(
           }
         }
 
-        const onFirstDraw = () => {
-          if (settled) return;
-          settled = true;
-          // Replace ourselves with a no-op so later redraws don't re-run this.
+        function finish() {
+          if (done) return;
+          done = true;
+          if (quietTimer) clearTimeout(quietTimer);
+          clearTimeout(hardTimeout);
           detach();
-          clearTimeout(timeout);
-          // Defer out of d3-celestial's redraw call stack so its data-load queue
-          // settles before we apply the dated view.
-          setTimeout(() => {
+          const canvas = container.querySelector<HTMLCanvasElement>('canvas');
+          if (!canvas) {
+            reject(new Error('d3-celestial produced no canvas'));
+            return;
+          }
+          if (!artEnabled || !art) {
+            resolve(canvas);
+            return;
+          }
+          // Composite on a temp canvas so the art sits BEHIND the stars but is
+          // blended additively over the background: bg → art (additive) → sky.
+          // (The sky canvas is transparent here because artEnabled forces it.)
+          loadArtSet(art.set)
+            .then(() => {
+              const tmp = document.createElement('canvas');
+              tmp.width = canvas.width;
+              tmp.height = canvas.height;
+              const t = tmp.getContext('2d');
+              if (t) {
+                t.fillStyle = fillColor; // background base
+                t.fillRect(0, 0, tmp.width, tmp.height);
+                drawConstellationArt(tmp, celestial.mapProjection as SkyProjection, {
+                  setId: art.set,
+                  opacity: art.opacity,
+                });
+                t.globalCompositeOperation = 'source-over';
+                t.drawImage(canvas, 0, 0); // stars / lines / names on top
+                // Copy the composite back onto d3's canvas (reset its transform).
+                const c = canvas.getContext('2d');
+                if (c) {
+                  c.setTransform(1, 0, 0, 1, 0, 0);
+                  c.clearRect(0, 0, canvas.width, canvas.height);
+                  c.drawImage(tmp, 0, 0);
+                }
+              }
+            })
+            .catch((err) => console.error('[art] overlay failed:', err))
+            .finally(() => resolve(canvas));
+        }
+
+        function scheduleQuiet() {
+          if (done) return;
+          if (quietTimer) clearTimeout(quietTimer);
+          quietTimer = setTimeout(onQuiet, QUIET_MS);
+        }
+
+        // Fired once redraws have stayed quiet for QUIET_MS — i.e. a load/apply
+        // phase finished. First quiet → apply the dated view; second → snapshot.
+        function onQuiet() {
+          if (done) return;
+          if (!applied) {
+            applied = true;
             try {
               // `date` is the absolute UTC instant. d3-celestial computes
               //   dtc = date − (timezone − localZone)  (localZone = the browser's
@@ -93,20 +173,28 @@ export function renderStarMap(
                 timezone: -new Date().getTimezoneOffset(),
               });
             } catch (err) {
+              done = true;
+              if (quietTimer) clearTimeout(quietTimer);
+              clearTimeout(hardTimeout);
+              detach();
               reject(err instanceof Error ? err : new Error(String(err)));
               return;
             }
-            const canvas = container.querySelector('canvas');
-            if (!canvas) {
-              reject(new Error('d3-celestial produced no canvas'));
-              return;
-            }
-            resolve(canvas as HTMLCanvasElement);
-          }, 0);
-        };
+            // Wait for skyview's redraw(s) to settle, then finish.
+            scheduleQuiet();
+          } else {
+            finish();
+          }
+        }
 
-        celestial.addCallback(onFirstDraw);
+        // Every layer load / redraw resets the quiet timer.
+        const onRedraw = () => scheduleQuiet();
+
+        celestial.addCallback(onRedraw);
         celestial.display(config);
+        // display() may finish its first paint before the callback is observed;
+        // arm the quiet timer immediately so we never stall waiting for a redraw.
+        scheduleQuiet();
       })
   );
 }

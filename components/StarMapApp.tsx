@@ -2,21 +2,53 @@
 
 import { useEffect, useRef, useState } from 'react';
 import InputForm, { type GeneratePayload } from '@/components/InputForm';
-import PosterCanvas from '@/components/PosterCanvas';
-import { composePoster } from '@/lib/sky/composePoster';
+import PosterCanvas, { type OutputTab } from '@/components/PosterCanvas';
+import SkyOptionsControls from '@/components/SkyOptions';
+import {
+  composePoster,
+  DEFAULT_POSTER_PAPER_ID,
+  DEFAULT_POSTER_SIZE_ID,
+  posterPaperById,
+  posterSizeById,
+} from '@/lib/sky/composePoster';
+import { bgColorById, DEFAULT_BG_COLOR_ID } from '@/lib/sky/celestial-config';
+import { DEFAULT_ART_SET_ID, hasArtSets } from '@/lib/sky/constellation-art';
+import {
+  composeWallpaper,
+  DEFAULT_WALLPAPER_SIZE_ID,
+  wallpaperSizeById,
+} from '@/lib/sky/composeWallpaper';
 import { exportPng } from '@/lib/sky/exportPng';
 import { renderStarMap } from '@/lib/sky/renderStarMap';
-import type { Theme } from '@/lib/sky/types';
+import type { SkyOptions, Theme } from '@/lib/sky/types';
 import { initTelegram } from '@/lib/telegram/bootstrap';
 import { DEFAULT_THEME } from '@/lib/telegram/theme';
 
 const SKY_SIZE = 1000;
+// Larger so the full-bleed wallpaper (sky scaled to cover the frame) stays crisp.
+const WALLPAPER_SKY_SIZE = 1600;
 // TODO(milestone-2): real @channel handle + paid-tier watermark toggle.
-const WATERMARK = '@your_channel';
-const POSTER_TITLE = 'THE NIGHT SKY';
+const WATERMARK = '@vector_2049_bot';
+
+const DEFAULT_SKY_OPTIONS: SkyOptions = {
+  milkyWay: false,
+  constellations: true,
+  constellationNames: false,
+  constellationArt: false,
+};
+
+/** Copy a canvas's pixels into a fresh detached canvas we can keep and reuse. */
+function snapshot(source: HTMLCanvasElement): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.width = source.width;
+  c.height = source.height;
+  c.getContext('2d')?.drawImage(source, 0, 0);
+  return c;
+}
 
 export default function StarMapApp() {
   const posterRef = useRef<HTMLCanvasElement | null>(null);
+  const wallpaperRef = useRef<HTMLCanvasElement | null>(null);
   const skyRef = useRef<HTMLDivElement | null>(null);
   const formRef = useRef<HTMLDivElement | null>(null);
 
@@ -24,7 +56,33 @@ export default function StarMapApp() {
   const [status, setStatus] = useState('Pick a date and place, then render the sky.');
   const [loading, setLoading] = useState(false);
   const [canDownload, setCanDownload] = useState(false);
+  const [activeTab, setActiveTab] = useState<OutputTab>('wallpaper');
+  const [posterSizeId, setPosterSizeId] = useState(DEFAULT_POSTER_SIZE_ID);
+  const [posterPaperId, setPosterPaperId] = useState(DEFAULT_POSTER_PAPER_ID);
+  const [wallpaperSizeId, setWallpaperSizeId] = useState(DEFAULT_WALLPAPER_SIZE_ID);
+  const [skyOptions, setSkyOptions] = useState<SkyOptions>(DEFAULT_SKY_OPTIONS);
+  const [bgColorId, setBgColorId] = useState<string>(DEFAULT_BG_COLOR_ID);
+  const [artSetId, setArtSetId] = useState<string>(DEFAULT_ART_SET_ID);
   const fileStampRef = useRef<string | null>(null);
+  // Last inputs, so toggling a sky option can re-render without re-entering the form.
+  const lastPayloadRef = useRef<GeneratePayload | null>(null);
+  // Snapshots of each output's star map, so changing a size recomposes instantly
+  // without re-rendering the sky.
+  const posterSkyRef = useRef<HTMLCanvasElement | null>(null);
+  const posterMetaRef = useRef<{
+    title: string;
+    subtitle: string;
+    watermark: string;
+    scrim: boolean;
+  } | null>(null);
+  const wallpaperSkyRef = useRef<HTMLCanvasElement | null>(null);
+  const wallpaperMetaRef = useRef<{
+    title: string;
+    place: string;
+    date: string;
+    watermark: string;
+    background: string;
+  } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -45,32 +103,114 @@ export default function StarMapApp() {
     };
   }, []);
 
-  const handleGenerate = async (payload: GeneratePayload) => {
-    if (!skyRef.current || !posterRef.current) return;
+  // Recompose the poster (from the cached sky snapshot) when the size or paper changes.
+  useEffect(() => {
+    if (!posterSkyRef.current || !posterRef.current || !posterMetaRef.current) return;
+    const size = posterSizeById(posterSizeId);
+    const paper = posterPaperById(posterPaperId);
+    composePoster(posterRef.current, {
+      starMapCanvas: posterSkyRef.current,
+      ...posterMetaRef.current,
+      theme,
+      background: paper.bg,
+      textColor: paper.text,
+      mutedColor: paper.muted,
+      width: size.w,
+      height: size.h,
+    });
+  }, [posterSizeId, posterPaperId, theme]);
+
+  // Recompose the wallpaper (from its cached sky snapshot) when the size changes.
+  useEffect(() => {
+    if (!wallpaperSkyRef.current || !wallpaperRef.current || !wallpaperMetaRef.current)
+      return;
+    const size = wallpaperSizeById(wallpaperSizeId);
+    composeWallpaper(wallpaperRef.current, {
+      starMapCanvas: wallpaperSkyRef.current,
+      ...wallpaperMetaRef.current,
+      width: size.w,
+      height: size.h,
+    });
+  }, [wallpaperSizeId]);
+
+  const handleGenerate = async (
+    payload: GeneratePayload,
+    opts: SkyOptions,
+    bgId: string,
+    artSet: string
+  ) => {
+    if (!skyRef.current || !posterRef.current || !wallpaperRef.current) return;
+    lastPayloadRef.current = payload;
     setLoading(true);
     setCanDownload(false);
     setStatus('Rendering the sky…');
 
-    try {
-      const starMapCanvas = await renderStarMap(skyRef.current, {
-        date: payload.date,
-        lat: payload.lat,
-        lng: payload.lng,
-        theme,
-        size: SKY_SIZE,
-      });
+    const bg = bgColorById(bgId);
+    const art = opts.constellationArt && hasArtSets() ? { set: artSet } : null;
+    const common = {
+      date: payload.date,
+      lat: payload.lat,
+      lng: payload.lng,
+      theme,
+      size: SKY_SIZE,
+      bgColor: bg,
+      milkyWay: opts.milkyWay,
+      constellations: opts.constellations,
+      constellationNames: opts.constellationNames,
+      art,
+    };
 
-      composePoster(posterRef.current, {
-        starMapCanvas,
-        title: POSTER_TITLE,
+    try {
+      // Poster: opaque sky with constellation lines + grid.
+      const posterSky = await renderStarMap(skyRef.current, common);
+      // Snapshot it before the wallpaper render overwrites the shared d3 canvas,
+      // so poster-size changes can recompose without re-rendering.
+      posterSkyRef.current = snapshot(posterSky);
+      posterMetaRef.current = {
+        title: payload.title,
         subtitle: `${payload.displayDate}\n${payload.label}`,
         watermark: WATERMARK,
+        scrim: opts.constellationNames,
+      };
+      const size = posterSizeById(posterSizeId);
+      const paper = posterPaperById(posterPaperId);
+      composePoster(posterRef.current, {
+        starMapCanvas: posterSkyRef.current,
+        ...posterMetaRef.current,
         theme,
+        background: paper.bg,
+        textColor: paper.text,
+        mutedColor: paper.muted,
+        width: size.w,
+        height: size.h,
+      });
+
+      // Wallpaper: same look as the poster (dark sky + stars + constellation
+      // lines), rendered larger so it stays crisp when scaled to cover the frame.
+      const wallpaperSky = await renderStarMap(skyRef.current, {
+        ...common,
+        size: WALLPAPER_SKY_SIZE,
+        background: 'sky',
+      });
+      wallpaperSkyRef.current = snapshot(wallpaperSky);
+      wallpaperMetaRef.current = {
+        title: payload.title,
+        place: payload.label,
+        date: payload.displayDate,
+        watermark: WATERMARK,
+        background: bg,
+      };
+      const wSize = wallpaperSizeById(wallpaperSizeId);
+      composeWallpaper(wallpaperRef.current, {
+        starMapCanvas: wallpaperSkyRef.current,
+        ...wallpaperMetaRef.current,
+        width: wSize.w,
+        height: wSize.h,
       });
 
       fileStampRef.current = payload.fileStamp;
       setCanDownload(true);
-      setStatus('Ready — download your poster.');
+      setStatus('Ready — switch tabs and download.');
     } catch (err) {
       console.error(err);
       setStatus(
@@ -81,11 +221,41 @@ export default function StarMapApp() {
     }
   };
 
+  // Toggling a sky option updates state and, if a render already exists,
+  // re-renders both outputs (the sky pixels change, so a recompose isn't enough).
+  const handleSkyOptionChange = (key: keyof SkyOptions, value: boolean) => {
+    const next = { ...skyOptions, [key]: value };
+    setSkyOptions(next);
+    if (lastPayloadRef.current) {
+      void handleGenerate(lastPayloadRef.current, next, bgColorId, artSetId);
+    }
+  };
+
+  // Background colour also changes the rendered sky, so it re-renders too.
+  const handleBgColorChange = (id: string) => {
+    setBgColorId(id);
+    if (lastPayloadRef.current) {
+      void handleGenerate(lastPayloadRef.current, skyOptions, id, artSetId);
+    }
+  };
+
+  // Switching the illustration set re-renders both outputs.
+  const handleArtSetChange = (id: string) => {
+    setArtSetId(id);
+    if (lastPayloadRef.current) {
+      void handleGenerate(lastPayloadRef.current, skyOptions, bgColorId, id);
+    }
+  };
+
   const handleDownload = async () => {
-    if (!posterRef.current) return;
-    const name = fileStampRef.current ? `star-map-${fileStampRef.current}` : 'star-map';
+    const canvas = activeTab === 'wallpaper' ? wallpaperRef.current : posterRef.current;
+    if (!canvas) return;
+    const stamp = fileStampRef.current ?? '';
+    const base = activeTab === 'wallpaper' ? 'star-wallpaper' : 'star-map';
+    const suffix = activeTab === 'wallpaper' ? `-${wallpaperSizeId}` : `-${posterSizeId}`;
+    const name = stamp ? `${base}-${stamp}${suffix}` : `${base}${suffix}`;
     try {
-      await exportPng(posterRef.current, name);
+      await exportPng(canvas, name);
     } catch (err) {
       console.error(err);
       setStatus('Could not export PNG.');
@@ -99,12 +269,34 @@ export default function StarMapApp() {
         <p>The sky exactly as it looked at your date and place.</p>
       </header>
 
-      <InputForm disabled={loading} onGenerate={handleGenerate} />
+      <InputForm
+        disabled={loading}
+        onGenerate={(payload) => handleGenerate(payload, skyOptions, bgColorId, artSetId)}
+      />
+
+      <SkyOptionsControls
+        value={skyOptions}
+        bgColorId={bgColorId}
+        artSetId={artSetId}
+        disabled={loading}
+        onChange={handleSkyOptionChange}
+        onBgColorChange={handleBgColorChange}
+        onArtSetChange={handleArtSetChange}
+      />
 
       <PosterCanvas
         posterRef={posterRef}
+        wallpaperRef={wallpaperRef}
         skyRef={skyRef}
         formRef={formRef}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        posterSizeId={posterSizeId}
+        onPosterSizeChange={setPosterSizeId}
+        posterPaperId={posterPaperId}
+        onPosterPaperChange={setPosterPaperId}
+        wallpaperSizeId={wallpaperSizeId}
+        onWallpaperSizeChange={setWallpaperSizeId}
         status={status}
         canDownload={canDownload}
         onDownload={handleDownload}
