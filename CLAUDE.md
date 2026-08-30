@@ -162,11 +162,14 @@ on both outputs and supports **multiple switchable sets** (skycultures).
 - **Build** (`scripts/build-constellation-art.mjs`): emits `lib/sky/*.generated.json` —
   the per-set anchors (only for images actually shipped) and a `{hip:[ra,dec]}` map for
   the anchor stars (resolved from `stars.14.json`). Runs after copy-celestial.
-- **Render**: `renderStarMap` with `art:{set}` renders the sky **transparent**, draws the
-  art behind the stars (`destination-over`, affine-warped per constellation, disc-clipped),
-  then fills the background behind it. Only constellations fully inside the disc are drawn.
-  Note: it's a 3-point **affine** placement (not Stellarium's mesh warp) — good, slightly
-  approximate for large/edge constellations.
+- **Render**: `renderStarMap` with `art:{set}` renders the sky **transparent**, then
+  composites on a temp canvas: **bg → art → stars**. The Stellarium PNGs are grey figures
+  on **black**, so art is drawn with **additive blend** (`lighter`) over the background —
+  black adds nothing (no dark panels on any bg), only the figure lightens the sky. Art is
+  affine-warped per constellation and **not** disc-clipped (so edge figures aren't sliced);
+  only constellations whose 3 anchors are all inside the disc are drawn. It's a 3-point
+  **affine** placement (not Stellarium's mesh warp) — good, slightly approximate for
+  large/edge constellations.
 - **Add a set**: drop `assets-src/skyculture-<name>/index.json` +
   `public/constellation-art/<name>/*.png`, rerun `npm run build-art`. The UI "Art style"
   selector appears automatically once there's more than one set.

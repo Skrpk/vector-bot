@@ -93,9 +93,12 @@ function affine3(
 
 /**
  * Draw a set's illustrations onto `canvas`, positioned by projecting each item's
- * anchor stars. Uses `destination-over` so art lands *behind* the already-drawn
- * stars/lines/names; the caller fills the background afterwards (also
- * destination-over). Only constellations fully inside the sky disc are drawn.
+ * anchor stars. The Stellarium art is grey figures on a BLACK frame, so we use
+ * **additive** blending (`lighter`): black adds nothing (no dark panels on any
+ * background) and only the figure lightens the sky — the caller should have
+ * pre-filled `canvas` with the background colour. Only constellations whose 3
+ * anchors are all inside the sky disc are drawn (so nothing below the horizon
+ * appears); the figure itself is NOT clipped, so it never gets sliced at the edge.
  */
 export function drawConstellationArt(
   canvas: HTMLCanvasElement,
@@ -111,14 +114,11 @@ export function drawConstellationArt(
   const scale = canvas.width / (tr[0] * 2); // CSS px → device px
   const cx = canvas.width / 2;
   const cy = canvas.height / 2;
-  const R = canvas.width / 2; // sky-disc radius
+  const R = canvas.width / 2; // sky-disc radius (for the visibility test only)
 
   ctx.save();
-  ctx.beginPath();
-  ctx.arc(cx, cy, R, 0, Math.PI * 2);
-  ctx.clip();
-  ctx.globalCompositeOperation = 'destination-over';
-  ctx.globalAlpha = opts.opacity ?? 0.5;
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = opts.opacity ?? 0.7;
 
   for (const item of set.items) {
     const img = imgCache.get(artUrl(opts.setId, item.file));
@@ -158,5 +158,5 @@ export function drawConstellationArt(
     ctx.drawImage(img, 0, 0);
   }
 
-  ctx.restore(); // restores transform, composite op, alpha and clip
+  ctx.restore(); // restores transform, composite op and alpha
 }

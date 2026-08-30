@@ -117,21 +117,31 @@ export function renderStarMap(
             resolve(canvas);
             return;
           }
-          // Draw the illustrations behind the sky, then fill the background
-          // behind them, then hand back the finished (opaque) canvas.
+          // Composite on a temp canvas so the art sits BEHIND the stars but is
+          // blended additively over the background: bg → art (additive) → sky.
+          // (The sky canvas is transparent here because artEnabled forces it.)
           loadArtSet(art.set)
             .then(() => {
-              drawConstellationArt(canvas, celestial.mapProjection as SkyProjection, {
-                setId: art.set,
-                opacity: art.opacity,
-              });
-              const ctx = canvas.getContext('2d');
-              if (ctx) {
-                ctx.save();
-                ctx.globalCompositeOperation = 'destination-over';
-                ctx.fillStyle = fillColor;
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.restore();
+              const tmp = document.createElement('canvas');
+              tmp.width = canvas.width;
+              tmp.height = canvas.height;
+              const t = tmp.getContext('2d');
+              if (t) {
+                t.fillStyle = fillColor; // background base
+                t.fillRect(0, 0, tmp.width, tmp.height);
+                drawConstellationArt(tmp, celestial.mapProjection as SkyProjection, {
+                  setId: art.set,
+                  opacity: art.opacity,
+                });
+                t.globalCompositeOperation = 'source-over';
+                t.drawImage(canvas, 0, 0); // stars / lines / names on top
+                // Copy the composite back onto d3's canvas (reset its transform).
+                const c = canvas.getContext('2d');
+                if (c) {
+                  c.setTransform(1, 0, 0, 1, 0, 0);
+                  c.clearRect(0, 0, canvas.width, canvas.height);
+                  c.drawImage(tmp, 0, 0);
+                }
               }
             })
             .catch((err) => console.error('[art] overlay failed:', err))
