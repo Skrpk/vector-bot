@@ -6,7 +6,9 @@ import PosterCanvas, { type OutputTab } from '@/components/PosterCanvas';
 import SkyOptionsControls from '@/components/SkyOptions';
 import {
   composePoster,
+  DEFAULT_POSTER_PAPER_ID,
   DEFAULT_POSTER_SIZE_ID,
+  posterPaperById,
   posterSizeById,
 } from '@/lib/sky/composePoster';
 import { bgColorById, DEFAULT_BG_COLOR_ID } from '@/lib/sky/celestial-config';
@@ -27,7 +29,6 @@ const SKY_SIZE = 1000;
 const WALLPAPER_SKY_SIZE = 1600;
 // TODO(milestone-2): real @channel handle + paid-tier watermark toggle.
 const WATERMARK = '@vector_2049_bot';
-const POSTER_TITLE = 'THE NIGHT SKY';
 
 const DEFAULT_SKY_OPTIONS: SkyOptions = {
   milkyWay: false,
@@ -55,8 +56,9 @@ export default function StarMapApp() {
   const [status, setStatus] = useState('Pick a date and place, then render the sky.');
   const [loading, setLoading] = useState(false);
   const [canDownload, setCanDownload] = useState(false);
-  const [activeTab, setActiveTab] = useState<OutputTab>('poster');
+  const [activeTab, setActiveTab] = useState<OutputTab>('wallpaper');
   const [posterSizeId, setPosterSizeId] = useState(DEFAULT_POSTER_SIZE_ID);
+  const [posterPaperId, setPosterPaperId] = useState(DEFAULT_POSTER_PAPER_ID);
   const [wallpaperSizeId, setWallpaperSizeId] = useState(DEFAULT_WALLPAPER_SIZE_ID);
   const [skyOptions, setSkyOptions] = useState<SkyOptions>(DEFAULT_SKY_OPTIONS);
   const [bgColorId, setBgColorId] = useState<string>(DEFAULT_BG_COLOR_ID);
@@ -71,16 +73,15 @@ export default function StarMapApp() {
     title: string;
     subtitle: string;
     watermark: string;
-    background: string;
     scrim: boolean;
   } | null>(null);
   const wallpaperSkyRef = useRef<HTMLCanvasElement | null>(null);
   const wallpaperMetaRef = useRef<{
+    title: string;
     place: string;
     date: string;
     watermark: string;
     background: string;
-    scrim: boolean;
   } | null>(null);
 
   useEffect(() => {
@@ -102,18 +103,22 @@ export default function StarMapApp() {
     };
   }, []);
 
-  // Recompose the poster (from the cached sky snapshot) when the size changes.
+  // Recompose the poster (from the cached sky snapshot) when the size or paper changes.
   useEffect(() => {
     if (!posterSkyRef.current || !posterRef.current || !posterMetaRef.current) return;
     const size = posterSizeById(posterSizeId);
+    const paper = posterPaperById(posterPaperId);
     composePoster(posterRef.current, {
       starMapCanvas: posterSkyRef.current,
       ...posterMetaRef.current,
       theme,
+      background: paper.bg,
+      textColor: paper.text,
+      mutedColor: paper.muted,
       width: size.w,
       height: size.h,
     });
-  }, [posterSizeId, theme]);
+  }, [posterSizeId, posterPaperId, theme]);
 
   // Recompose the wallpaper (from its cached sky snapshot) when the size changes.
   useEffect(() => {
@@ -162,17 +167,20 @@ export default function StarMapApp() {
       // so poster-size changes can recompose without re-rendering.
       posterSkyRef.current = snapshot(posterSky);
       posterMetaRef.current = {
-        title: POSTER_TITLE,
+        title: payload.title,
         subtitle: `${payload.displayDate}\n${payload.label}`,
         watermark: WATERMARK,
-        background: bg,
         scrim: opts.constellationNames,
       };
       const size = posterSizeById(posterSizeId);
+      const paper = posterPaperById(posterPaperId);
       composePoster(posterRef.current, {
         starMapCanvas: posterSkyRef.current,
         ...posterMetaRef.current,
         theme,
+        background: paper.bg,
+        textColor: paper.text,
+        mutedColor: paper.muted,
         width: size.w,
         height: size.h,
       });
@@ -186,11 +194,11 @@ export default function StarMapApp() {
       });
       wallpaperSkyRef.current = snapshot(wallpaperSky);
       wallpaperMetaRef.current = {
+        title: payload.title,
         place: payload.label,
         date: payload.displayDate,
         watermark: WATERMARK,
         background: bg,
-        scrim: opts.constellationNames,
       };
       const wSize = wallpaperSizeById(wallpaperSizeId);
       composeWallpaper(wallpaperRef.current, {
@@ -285,6 +293,8 @@ export default function StarMapApp() {
         onTabChange={setActiveTab}
         posterSizeId={posterSizeId}
         onPosterSizeChange={setPosterSizeId}
+        posterPaperId={posterPaperId}
+        onPosterPaperChange={setPosterPaperId}
         wallpaperSizeId={wallpaperSizeId}
         onWallpaperSizeChange={setWallpaperSizeId}
         status={status}

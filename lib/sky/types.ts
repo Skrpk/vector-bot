@@ -79,8 +79,12 @@ export interface PosterOptions {
   subtitle: string;
   watermark: string;
   theme: Theme;
-  /** Poster background fill colour (hex) — matches the sky background. */
+  /** Paper colour (hex) — the area OUTSIDE the sky circle. */
   background: string;
+  /** Title colour (hex) — dark on white paper, light on dark paper. */
+  textColor: string;
+  /** Subtitle/watermark colour (hex). */
+  mutedColor: string;
   /** Draw a fading dark scrim behind the text (used when names are on). */
   scrim?: boolean;
   /** Export pixel width (from the selected PosterSize). */
@@ -107,6 +111,8 @@ export interface WallpaperSize {
  */
 export interface WallpaperOptions {
   starMapCanvas: HTMLCanvasElement;
+  /** Heading (same as the poster title), shown above the place. */
+  title: string;
   /** Place name, e.g. "Prague, Prague, Czechia". */
   place: string;
   /** Human-readable date/time line. */
@@ -114,8 +120,6 @@ export interface WallpaperOptions {
   watermark: string;
   /** Wallpaper background fill colour (hex) — matches the sky background. */
   background: string;
-  /** Draw a fading dark scrim behind the text (used when names are on). */
-  scrim?: boolean;
   /** Export pixel width (from the selected WallpaperSize). */
   width: number;
   /** Export pixel height (from the selected WallpaperSize). */

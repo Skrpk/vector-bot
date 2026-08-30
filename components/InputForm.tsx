@@ -8,6 +8,8 @@ import { resolveInstant } from '@/lib/time/localToUtc';
 export interface GeneratePayload {
   /** Absolute UTC instant to render (already timezone-resolved). */
   date: Date;
+  /** Poster/wallpaper heading (may be empty). */
+  title: string;
   lat: number;
   lng: number;
   /** Place label for the poster subtitle ("City, Region, Country"). */
@@ -31,6 +33,8 @@ interface InputFormProps {
   disabled?: boolean;
   onGenerate: (payload: GeneratePayload) => void;
 }
+
+const DEFAULT_TITLE = 'THE NIGHT SKY';
 
 function defaultDateTimeLocal(): string {
   const d = new Date();
@@ -57,6 +61,7 @@ function formatDisplayDate(wall: string): string {
 }
 
 export default function InputForm({ disabled, onGenerate }: InputFormProps) {
+  const [title, setTitle] = useState(DEFAULT_TITLE);
   const [dateTime, setDateTime] = useState(defaultDateTimeLocal);
   const [location, setLocation] = useState<SelectedLocation | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -88,6 +93,7 @@ export default function InputForm({ disabled, onGenerate }: InputFormProps) {
 
     onGenerate({
       date: instant,
+      title: title.trim(),
       lat: location.lat,
       lng: location.lng,
       label: location.label,
@@ -99,6 +105,18 @@ export default function InputForm({ disabled, onGenerate }: InputFormProps) {
 
   return (
     <form className="form" onSubmit={handleSubmit}>
+      <div className="form__field">
+        <label htmlFor="title">Title</label>
+        <input
+          id="title"
+          type="text"
+          placeholder="e.g. THE NIGHT SKY"
+          value={title}
+          maxLength={40}
+          onChange={(e) => setTitle(e.target.value)}
+        />
+      </div>
+
       <div className="form__field">
         <label htmlFor="date">Date &amp; time</label>
         <input

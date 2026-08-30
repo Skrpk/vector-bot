@@ -91,19 +91,19 @@ milkyWay?, constellations?, constellationNames?, art? }) => Promise<HTMLCanvasEl
   arrive last; cached re-renders reorder). Instead it waits for redraws to stay quiet
   (~320ms), applies the dated view via `skyview()`, waits for quiet again, then snapshots.
 - `composePoster(canvas, { starMapCanvas, title, subtitle, watermark, theme, background,
-scrim?, width, height })` — draws the framed circular-sky poster at `width`×`height`
-  (`background` = fill hex; `scrim` draws a fading dark backdrop behind the text). Layout
-  scales with width (constants in `LAYOUT`). **`POSTER_SIZES`** = the 4 print sizes (21×30 /
-  30×40 / 40×50 / 50×70 cm) → pixel dims at ~150 DPI, long edge capped at 4096 (mobile-
-  safe); `DEFAULT_POSTER_SIZE_ID = '21x30'`; `posterSizeById(id)`.
-- `composeWallpaper(canvas, { starMapCanvas, place, date, watermark, background, scrim?,
-width, height })` — draws a full-bleed phone wallpaper at `width`×`height`: **same dark
-  sky + stars + constellation lines as the poster** + **white text**, sky scaled to
-  **cover the whole frame** (source disc enlarged past the frame diagonal so stars reach
-  every edge).
-  **`WALLPAPER_SIZES`** = popular aspect ratios (9:16, 9:20, 9:19.5, 9:21) covering most
-  devices; `DEFAULT_WALLPAPER_SIZE_ID = '9x195'`; `wallpaperSizeById(id)`. Feed it a
-  `background:'sky'` render (rendered larger, ~1600, for crispness).
+textColor, mutedColor, scrim?, width, height })` — framed circular-sky poster at
+  `width`×`height`. **`background` = the PAPER colour OUTSIDE the circle** (the sky's own
+  colour is baked into the disc); `textColor`/`mutedColor` come from the paper (white paper
+  → dark text). **`POSTER_SIZES`** (21×30 / 30×40 / 40×50 / 50×70 cm, ~150 DPI, long edge
+  ≤4096; default 21×30). **`POSTER_PAPERS`** = Deep space / Black / **White** →
+  `{bg,text,muted}`; `DEFAULT_POSTER_PAPER_ID='space'`; `posterPaperById(id)`. Size + paper
+  are compose-time (recompose from snapshot, no re-render).
+- `composeWallpaper(canvas, { starMapCanvas, title, place, date, watermark, background,
+width, height })` — full-bleed phone wallpaper: same sky as the poster + **white text
+  (title / place / date)** over a **near-opaque dark scrim that fades at the edges** (so
+  text never mixes with names/art); the watermark gets its own small scrim. Sky covers the
+  whole frame. **`WALLPAPER_SIZES`** = 9:16 / 9:20 / 9:19.5 / 9:21 (default 9:19.5). Feed
+  it a `background:'sky'` render (~1600, for crispness).
 - `exportPng(canvas, filename) => Promise<void>` — `canvas.toBlob()` download.
 - `celestial-config.ts` — the dark, clean d3-celestial config (airy projection,
   zenith-centered local sky), parameterised by `background`, `bgColor` + the three sky
@@ -136,7 +136,11 @@ was removed, so a place always carries an IANA timezone.
 UI: `app/page.tsx` → `components/StarMapApp.tsx` (client orchestrator) →
 `InputForm.tsx` (+ `CitySearch.tsx`) + `SkyOptions.tsx` (+ `AboutArt.tsx` attribution
 modal, Free Art License) + `PosterCanvas.tsx`. `app/globals.css` holds theme CSS vars.
-Constellation art is listed first; Milky Way defaults **off**. On "Render", StarMapApp renders the sky **twice**
+Constellation art is listed first; Milky Way defaults **off**. **Wallpaper is the
+default tab** (left of Poster). `InputForm` has a customizable **Title** (shown on both
+outputs). The **Background** control sets the sky colour _inside_ the circle (both
+outputs); a poster-only **Paper** selector (Deep space / Black / White) sets the colour
+_outside_ the circle and the text colour. On "Render", StarMapApp renders the sky **twice**
 off-screen (poster + wallpaper, wallpaper larger), **snapshots each** into a detached
 canvas, and composes both; `PosterCanvas` shows them behind **Poster / Wallpaper tabs**
 (both canvases stay mounted, so switching tabs never re-renders). Each tab has a **size

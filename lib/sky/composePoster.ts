@@ -34,6 +34,28 @@ export function posterSizeById(id: string): PosterSize {
 }
 
 /**
+ * Poster "paper" — the colour OUTSIDE the sky circle plus the matching text
+ * colours. Separate from the sky-disc background (which the shared "Background"
+ * control sets). White paper flips the text to dark.
+ */
+export interface PosterPaper {
+  id: string;
+  label: string;
+  bg: string;
+  text: string;
+  muted: string;
+}
+export const POSTER_PAPERS: readonly PosterPaper[] = [
+  { id: 'space', label: 'Deep space', bg: '#0b1020', text: '#f2f4ff', muted: '#8891b0' },
+  { id: 'black', label: 'Black', bg: '#000000', text: '#f2f4ff', muted: '#8891b0' },
+  { id: 'white', label: 'White', bg: '#ffffff', text: '#12131a', muted: '#555b70' },
+] as const;
+export const DEFAULT_POSTER_PAPER_ID = 'space';
+export function posterPaperById(id: string): PosterPaper {
+  return POSTER_PAPERS.find((p) => p.id === id) ?? POSTER_PAPERS[0];
+}
+
+/**
  * Layout, expressed relative to a 1080px reference width so it scales to any
  * poster size. All geometry/typography lives here to make restyling easy.
  */
@@ -61,8 +83,18 @@ const LAYOUT = {
  * its own dark background. Layout scales with the poster width.
  */
 export function composePoster(canvas: HTMLCanvasElement, opts: PosterOptions): void {
-  const { starMapCanvas, title, subtitle, watermark, theme, background, width, height } =
-    opts;
+  const {
+    starMapCanvas,
+    title,
+    subtitle,
+    watermark,
+    theme,
+    background,
+    textColor,
+    mutedColor,
+    width,
+    height,
+  } = opts;
   const s = width / LAYOUT.refWidth; // scale factor vs the reference width
   const margin = LAYOUT.margin * s;
   const maxTextWidth = width - margin * 2;
@@ -72,7 +104,7 @@ export function composePoster(canvas: HTMLCanvasElement, opts: PosterOptions): v
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('2D context unavailable');
 
-  // Background (chosen sky colour)
+  // Paper (colour outside the sky circle). The disc keeps its own sky colour.
   ctx.fillStyle = background;
   ctx.fillRect(0, 0, width, height);
 
@@ -140,12 +172,12 @@ export function composePoster(canvas: HTMLCanvasElement, opts: PosterOptions): v
   }
 
   // Title
-  ctx.fillStyle = theme.text;
+  ctx.fillStyle = textColor;
   ctx.font = titleFont;
-  ctx.fillText(title, cx, textTop, maxTextWidth);
+  if (title) ctx.fillText(title, cx, textTop, maxTextWidth);
 
   // Subtitle (supports "\n" for multiple lines)
-  ctx.fillStyle = theme.muted;
+  ctx.fillStyle = mutedColor;
   ctx.font = subFont;
   let y = subFirstY;
   for (const line of subLines) {
@@ -159,7 +191,7 @@ export function composePoster(canvas: HTMLCanvasElement, opts: PosterOptions): v
   ctx.textAlign = 'right';
   ctx.textBaseline = 'bottom';
   ctx.font = `500 ${LAYOUT.watermarkPx * s}px ${LAYOUT.font}`;
-  ctx.fillStyle = theme.muted;
+  ctx.fillStyle = mutedColor;
   ctx.globalAlpha = 0.85;
   ctx.fillText(watermark, width - margin, height - margin * 0.6);
   ctx.globalAlpha = 1;

@@ -1,7 +1,7 @@
 'use client';
 
 import type { RefObject } from 'react';
-import { POSTER_SIZES } from '@/lib/sky/composePoster';
+import { POSTER_PAPERS, POSTER_SIZES } from '@/lib/sky/composePoster';
 import { WALLPAPER_SIZES } from '@/lib/sky/composeWallpaper';
 
 export type OutputTab = 'poster' | 'wallpaper';
@@ -19,6 +19,8 @@ interface PosterCanvasProps {
   onTabChange: (tab: OutputTab) => void;
   posterSizeId: string;
   onPosterSizeChange: (id: string) => void;
+  posterPaperId: string;
+  onPosterPaperChange: (id: string) => void;
   wallpaperSizeId: string;
   onWallpaperSizeChange: (id: string) => void;
   status: string;
@@ -41,6 +43,8 @@ export default function PosterCanvas({
   onTabChange,
   posterSizeId,
   onPosterSizeChange,
+  posterPaperId,
+  onPosterPaperChange,
   wallpaperSizeId,
   onWallpaperSizeChange,
   status,
@@ -53,39 +57,61 @@ export default function PosterCanvas({
         <button
           type="button"
           role="tab"
-          aria-selected={activeTab === 'poster'}
-          className={`tabs__tab${activeTab === 'poster' ? ' tabs__tab--active' : ''}`}
-          onClick={() => onTabChange('poster')}
-        >
-          Poster
-        </button>
-        <button
-          type="button"
-          role="tab"
           aria-selected={activeTab === 'wallpaper'}
           className={`tabs__tab${activeTab === 'wallpaper' ? ' tabs__tab--active' : ''}`}
           onClick={() => onTabChange('wallpaper')}
         >
           Wallpaper
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'poster'}
+          className={`tabs__tab${activeTab === 'poster' ? ' tabs__tab--active' : ''}`}
+          onClick={() => onTabChange('poster')}
+        >
+          Poster
+        </button>
       </div>
 
       {activeTab === 'poster' && (
-        <div className="sizes" role="group" aria-label="Poster size">
-          {POSTER_SIZES.map((size) => (
-            <button
-              key={size.id}
-              type="button"
-              aria-pressed={posterSizeId === size.id}
-              className={`sizes__opt${
-                posterSizeId === size.id ? ' sizes__opt--active' : ''
-              }`}
-              onClick={() => onPosterSizeChange(size.id)}
-            >
-              {size.label}
-            </button>
-          ))}
-        </div>
+        <>
+          <div className="sizes" role="group" aria-label="Poster size">
+            {POSTER_SIZES.map((size) => (
+              <button
+                key={size.id}
+                type="button"
+                aria-pressed={posterSizeId === size.id}
+                className={`sizes__opt${
+                  posterSizeId === size.id ? ' sizes__opt--active' : ''
+                }`}
+                onClick={() => onPosterSizeChange(size.id)}
+              >
+                {size.label}
+              </button>
+            ))}
+          </div>
+          <div className="sizes" role="group" aria-label="Poster paper">
+            {POSTER_PAPERS.map((paper) => (
+              <button
+                key={paper.id}
+                type="button"
+                aria-pressed={posterPaperId === paper.id}
+                className={`sizes__opt${
+                  posterPaperId === paper.id ? ' sizes__opt--active' : ''
+                }`}
+                onClick={() => onPosterPaperChange(paper.id)}
+              >
+                <span
+                  className="skyopts__swatch"
+                  style={{ background: paper.bg }}
+                  aria-hidden="true"
+                />
+                {paper.label}
+              </button>
+            ))}
+          </div>
+        </>
       )}
 
       {activeTab === 'wallpaper' && (
