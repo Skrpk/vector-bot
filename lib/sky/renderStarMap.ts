@@ -4,6 +4,8 @@ import type { RenderOptions } from './types';
 
 const DEFAULT_SIZE = 1000;
 const RENDER_TIMEOUT_MS = 15000;
+// How long redraws must stay quiet before we treat a load/apply phase as done.
+const QUIET_MS = 320;
 
 /**
  * Render the night sky for a given date + location into `container` using
@@ -22,15 +24,18 @@ const RENDER_TIMEOUT_MS = 15000;
  * that sibling and reads them back when applying the view — without it, rendering
  * throws.
  *
- * Completion: d3-celestial fires `addCallback` after it loads the catalogs and
- * draws the first frame. We then apply the exact date + location via `skyview()`,
- * which redraws synchronously (animations are disabled); the canvas is final once
- * it returns.
+ * Completion — why it's not just "first redraw": d3-celestial loads each layer
+ * (stars, Milky Way, constellation lines, constellation NAMES) as a *separate*
+ * async fetch, and each one calls redraw() when it lands. Grabbing after the first
+ * redraw intermittently misses slow layers (names arrive last; on cached
+ * re-renders the order shifts). Instead we treat "redraws have been quiet for
+ * QUIET_MS" as "all layers painted": wait for quiet, apply the exact date via
+ * skyview(), wait for quiet again, then snapshot.
  *
  * Why we detach with a no-op instead of `null`: d3-celestial's `runCallback()`
  * unconditionally re-sets `hasCallback = true` *after* invoking the callback, so a
- * `null` callback makes every later redraw (planet load, skyview) call `null()` and
- * throw. A no-op keeps those redraws harmless.
+ * `null` callback makes every later redraw call `null()` and throw. A no-op keeps
+ * those redraws harmless.
  */
 const NOOP = () => {};
 export function renderStarMap(
@@ -68,13 +73,11 @@ export function renderStarMap(
           constellationNames,
         });
 
-        let settled = false;
-        const timeout = setTimeout(() => {
-          if (settled) return;
-          settled = true;
-          detach();
-          reject(new Error('Star map render timed out'));
-        }, RENDER_TIMEOUT_MS);
+        let done = false;
+        let applied = false; // has skyview() been called yet?
+        let quietTimer: ReturnType<typeof setTimeout> | null = null;
+
+        const hardTimeout = setTimeout(() => finish(), RENDER_TIMEOUT_MS);
 
         function detach() {
           try {
@@ -85,15 +88,32 @@ export function renderStarMap(
           }
         }
 
-        const onFirstDraw = () => {
-          if (settled) return;
-          settled = true;
-          // Replace ourselves with a no-op so later redraws don't re-run this.
+        function finish() {
+          if (done) return;
+          done = true;
+          if (quietTimer) clearTimeout(quietTimer);
+          clearTimeout(hardTimeout);
           detach();
-          clearTimeout(timeout);
-          // Defer out of d3-celestial's redraw call stack so its data-load queue
-          // settles before we apply the dated view.
-          setTimeout(() => {
+          const canvas = container.querySelector<HTMLCanvasElement>('canvas');
+          if (!canvas) {
+            reject(new Error('d3-celestial produced no canvas'));
+            return;
+          }
+          resolve(canvas);
+        }
+
+        function scheduleQuiet() {
+          if (done) return;
+          if (quietTimer) clearTimeout(quietTimer);
+          quietTimer = setTimeout(onQuiet, QUIET_MS);
+        }
+
+        // Fired once redraws have stayed quiet for QUIET_MS — i.e. a load/apply
+        // phase finished. First quiet → apply the dated view; second → snapshot.
+        function onQuiet() {
+          if (done) return;
+          if (!applied) {
+            applied = true;
             try {
               // `date` is the absolute UTC instant. d3-celestial computes
               //   dtc = date − (timezone − localZone)  (localZone = the browser's
@@ -107,59 +127,28 @@ export function renderStarMap(
                 timezone: -new Date().getTimezoneOffset(),
               });
             } catch (err) {
+              done = true;
+              if (quietTimer) clearTimeout(quietTimer);
+              clearTimeout(hardTimeout);
+              detach();
               reject(err instanceof Error ? err : new Error(String(err)));
               return;
             }
-            const canvas = container.querySelector<HTMLCanvasElement>('canvas');
-            if (!canvas) {
-              reject(new Error('d3-celestial produced no canvas'));
-              return;
-            }
-            // The first redraw callback can fire before the star catalog is
-            // painted (notably on a second, back-to-back render when data is
-            // cached), which would hand back an empty canvas. Poll until the
-            // canvas actually holds bright content, then resolve.
-            waitForContent(canvas, resolve);
-          }, 0);
-        };
+            // Wait for skyview's redraw(s) to settle, then finish.
+            scheduleQuiet();
+          } else {
+            finish();
+          }
+        }
 
-        celestial.addCallback(onFirstDraw);
+        // Every layer load / redraw resets the quiet timer.
+        const onRedraw = () => scheduleQuiet();
+
+        celestial.addCallback(onRedraw);
         celestial.display(config);
+        // display() may finish its first paint before the callback is observed;
+        // arm the quiet timer immediately so we never stall waiting for a redraw.
+        scheduleQuiet();
       })
   );
-}
-
-/**
- * Cheap check: has the star catalog been painted yet? We downscale to 48×48 and
- * count bright cells (stars / constellation lines). A freshly-cleared or
- * background-only canvas yields ~0; any real starfield yields well over the
- * threshold, so a low bar reliably tells "painted" from "empty" across sizes.
- */
-function hasBrightContent(canvas: HTMLCanvasElement): boolean {
-  const s = document.createElement('canvas');
-  s.width = 48;
-  s.height = 48;
-  const ctx = s.getContext('2d');
-  if (!ctx) return true; // can't check → assume ready
-  ctx.clearRect(0, 0, 48, 48);
-  ctx.drawImage(canvas, 0, 0, 48, 48);
-  const data = ctx.getImageData(0, 0, 48, 48).data;
-  let bright = 0;
-  for (let i = 0; i < data.length; i += 4) {
-    if (data[i + 3] > 10 && (data[i] + data[i + 1] + data[i + 2]) / 3 > 80) bright++;
-  }
-  return bright > 5;
-}
-
-function waitForContent(
-  canvas: HTMLCanvasElement,
-  resolve: (c: HTMLCanvasElement) => void,
-  attempt = 0
-): void {
-  // ~1.5s ceiling (50 × 30ms); resolve anyway rather than hang.
-  if (attempt >= 50 || hasBrightContent(canvas)) {
-    resolve(canvas);
-    return;
-  }
-  setTimeout(() => waitForContent(canvas, resolve, attempt + 1), 30);
 }

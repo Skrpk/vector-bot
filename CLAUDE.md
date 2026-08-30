@@ -82,9 +82,11 @@ constellations?, constellationNames? }) => Promise<HTMLCanvasElement>` — takes
   The three sky toggles (all default true, names false) map to d3-celestial's `mw.show` /
   `constellations.lines` / `constellations.names` (`namesType:'uk'`, Ukrainian). A faint
   graticule is always drawn.
-  **Before resolving it polls the canvas until it holds painted content** (`> 5` bright
-  cells in a 48×48 downscale) — the first redraw callback can fire before the star catalog
-  is painted (notably on a 2nd back-to-back render when data is cached).
+  **Completion is redraw-quiet-based, not first-redraw:** d3-celestial loads each layer
+  (stars / Milky Way / lines / **names**) as a separate async fetch that each calls
+  redraw(), so grabbing after the first redraw intermittently drops slow layers (names
+  arrive last; cached re-renders reorder). Instead it waits for redraws to stay quiet
+  (~320ms), applies the dated view via `skyview()`, waits for quiet again, then snapshots.
 - `composePoster(canvas, { starMapCanvas, title, subtitle, watermark, theme, background,
 scrim?, width, height })` — draws the framed circular-sky poster at `width`×`height`
   (`background` = fill hex; `scrim` draws a fading dark backdrop behind the text). Layout
