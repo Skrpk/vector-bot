@@ -296,6 +296,10 @@ export default function StarMapApp() {
         setStatus('Не вдалося надіслати зображення.');
       } finally {
         setSending(false);
+        // Bring the response into view — the status/subscribe prompt sit at the
+        // page bottom, and the user may have scrolled away while sending. Defer
+        // past the render so the (taller) subscribe prompt is laid out first.
+        requestAnimationFrame(() => requestAnimationFrame(scrollToBottom));
       }
       return;
     }
@@ -306,6 +310,23 @@ export default function StarMapApp() {
       console.error(err);
       setStatus('Не вдалося зберегти PNG.');
     }
+  };
+
+  // Smooth-scroll to the very bottom of the page. Used after a send-to-chat
+  // response so the user sees the status / subscribe prompt even if they scrolled
+  // up while the request was in flight. Same smooth-then-fallback trick as
+  // scrollOutputIntoView for webviews where `behavior:'smooth'` no-ops.
+  const scrollToBottom = () => {
+    const toBottom = () =>
+      window.scrollTo({
+        top: document.documentElement.scrollHeight,
+        behavior: 'smooth',
+      });
+    const startY = window.scrollY;
+    toBottom();
+    window.setTimeout(() => {
+      if (Math.abs(window.scrollY - startY) < 2) toBottom();
+    }, 350);
   };
 
   // Scroll the preview into view. Programmatic `behavior:'smooth'` silently
