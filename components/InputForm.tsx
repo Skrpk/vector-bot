@@ -34,7 +34,7 @@ interface InputFormProps {
   onGenerate: (payload: GeneratePayload) => void;
 }
 
-const DEFAULT_TITLE = 'НІЧНЕ НЕБО';
+const DEFAULT_TITLE = 'ДЕНЬ НАРОДЖЕННЯ';
 
 function defaultDateTimeLocal(): string {
   const d = new Date();
@@ -110,7 +110,7 @@ export default function InputForm({ disabled, onGenerate }: InputFormProps) {
         <input
           id="title"
           type="text"
-          placeholder="напр. НІЧНЕ НЕБО"
+          placeholder="напр. ВЕСІЛЛЯ💍"
           value={title}
           maxLength={40}
           onChange={(e) => setTitle(e.target.value)}
