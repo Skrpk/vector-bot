@@ -99,7 +99,7 @@ export default function CitySearch({ onSelect, disabled }: CitySearchProps) {
       <input
         type="text"
         autoComplete="off"
-        placeholder="Пошук міста — напр. Прага"
+        placeholder="Пошук міста — напр. Київ"
         value={query}
         disabled={disabled}
         onChange={(e) => setQuery(e.target.value)}
