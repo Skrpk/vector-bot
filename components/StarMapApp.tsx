@@ -51,6 +51,7 @@ export default function StarMapApp() {
   const wallpaperRef = useRef<HTMLCanvasElement | null>(null);
   const skyRef = useRef<HTMLDivElement | null>(null);
   const formRef = useRef<HTMLDivElement | null>(null);
+  const outputRef = useRef<HTMLDivElement | null>(null);
 
   const [theme, setTheme] = useState<Theme>(DEFAULT_THEME);
   const [status, setStatus] = useState('Pick a date and place, then render the sky.');
@@ -63,6 +64,7 @@ export default function StarMapApp() {
   const [skyOptions, setSkyOptions] = useState<SkyOptions>(DEFAULT_SKY_OPTIONS);
   const [bgColorId, setBgColorId] = useState<string>(DEFAULT_BG_COLOR_ID);
   const [artSetId, setArtSetId] = useState<string>(DEFAULT_ART_SET_ID);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const fileStampRef = useRef<string | null>(null);
   // Last inputs, so toggling a sky option can re-render without re-entering the form.
   const lastPayloadRef = useRef<GeneratePayload | null>(null);
@@ -267,43 +269,64 @@ export default function StarMapApp() {
       <header className="app__header">
         <h1>Star Map Poster</h1>
         <p>The sky exactly as it looked at your date and place.</p>
-        <a href="https://t.me/vector_space2035" target="_blank" rel="noopener noreferrer">
-          @vector_space2035
-        </a>
       </header>
 
       <InputForm
         disabled={loading}
-        onGenerate={(payload) => handleGenerate(payload, skyOptions, bgColorId, artSetId)}
+        onGenerate={(payload) => {
+          void handleGenerate(payload, skyOptions, bgColorId, artSetId);
+          // On an explicit "Render", bring the preview into view so the user
+          // immediately sees it appear (only here, not on settings re-renders).
+          outputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }}
       />
 
-      <SkyOptionsControls
-        value={skyOptions}
-        bgColorId={bgColorId}
-        artSetId={artSetId}
-        disabled={loading}
-        onChange={handleSkyOptionChange}
-        onBgColorChange={handleBgColorChange}
-        onArtSetChange={handleArtSetChange}
-      />
+      <button
+        type="button"
+        className="settings-toggle"
+        aria-expanded={settingsOpen}
+        aria-controls="sky-settings"
+        onClick={() => setSettingsOpen((v) => !v)}
+      >
+        <span aria-hidden="true">⚙</span> Settings
+        <span className="settings-toggle__chevron" aria-hidden="true">
+          {settingsOpen ? '▾' : '▸'}
+        </span>
+      </button>
 
-      <PosterCanvas
-        posterRef={posterRef}
-        wallpaperRef={wallpaperRef}
-        skyRef={skyRef}
-        formRef={formRef}
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        posterSizeId={posterSizeId}
-        onPosterSizeChange={setPosterSizeId}
-        posterPaperId={posterPaperId}
-        onPosterPaperChange={setPosterPaperId}
-        wallpaperSizeId={wallpaperSizeId}
-        onWallpaperSizeChange={setWallpaperSizeId}
-        status={status}
-        canDownload={canDownload}
-        onDownload={handleDownload}
-      />
+      {settingsOpen && (
+        <div id="sky-settings">
+          <SkyOptionsControls
+            value={skyOptions}
+            bgColorId={bgColorId}
+            artSetId={artSetId}
+            disabled={loading}
+            onChange={handleSkyOptionChange}
+            onBgColorChange={handleBgColorChange}
+            onArtSetChange={handleArtSetChange}
+          />
+        </div>
+      )}
+
+      <div ref={outputRef} style={{ scrollMarginTop: 12 }}>
+        <PosterCanvas
+          posterRef={posterRef}
+          wallpaperRef={wallpaperRef}
+          skyRef={skyRef}
+          formRef={formRef}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          posterSizeId={posterSizeId}
+          onPosterSizeChange={setPosterSizeId}
+          posterPaperId={posterPaperId}
+          onPosterPaperChange={setPosterPaperId}
+          wallpaperSizeId={wallpaperSizeId}
+          onWallpaperSizeChange={setWallpaperSizeId}
+          status={status}
+          canDownload={canDownload}
+          onDownload={handleDownload}
+        />
+      </div>
 
       <footer className="app__credits">
         Geocoding by Open-Meteo · Places © OpenStreetMap contributors
