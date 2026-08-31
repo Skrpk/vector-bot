@@ -24,8 +24,14 @@ interface PosterCanvasProps {
   wallpaperSizeId: string;
   onWallpaperSizeChange: (id: string) => void;
   status: string;
+  /** A sky render is in flight — show a loading overlay on the canvas. */
+  loading: boolean;
   canDownload: boolean;
   onDownload: () => void;
+  /** Inside Telegram the button sends the image to the chat, not a download. */
+  inTelegram: boolean;
+  /** A send-to-chat request is in flight (Telegram only). */
+  sending: boolean;
 }
 
 /**
@@ -48,9 +54,18 @@ export default function PosterCanvas({
   wallpaperSizeId,
   onWallpaperSizeChange,
   status,
+  loading,
   canDownload,
   onDownload,
+  inTelegram,
+  sending,
 }: PosterCanvasProps) {
+  const kind = activeTab === 'wallpaper' ? 'wallpaper' : 'poster';
+  const label = inTelegram
+    ? sending
+      ? 'Sending…'
+      : `Send ${kind} to chat`
+    : `↓ Download ${kind} PNG`;
   return (
     <div className="poster">
       <div className="tabs" role="tablist" aria-label="Output type">
@@ -150,6 +165,15 @@ export default function PosterCanvas({
           aria-label="Star map wallpaper preview"
           hidden={activeTab !== 'wallpaper'}
         />
+
+        {/* Loading overlay drawn on top of the in-progress canvas, so a user who
+            has scrolled to the preview sees that a render is underway. */}
+        {loading && (
+          <div className="canvas-loader" role="status" aria-live="polite">
+            <span className="canvas-loader__spinner" aria-hidden="true" />
+            <span className="canvas-loader__text">Rendering the sky…</span>
+          </div>
+        )}
       </div>
 
       {activeTab === 'wallpaper' && (
@@ -161,14 +185,20 @@ export default function PosterCanvas({
 
       <p className="poster__status">{status}</p>
 
-      <button
-        className="btn btn--ghost"
-        type="button"
-        onClick={onDownload}
-        disabled={!canDownload}
-      >
-        Download {activeTab === 'wallpaper' ? 'wallpaper' : 'poster'} PNG
-      </button>
+      {/* Floating gold action bar — only present once an output is ready.
+          Downloads in a browser; sends the image to the chat inside Telegram. */}
+      {canDownload && (
+        <div className="download-bar">
+          <button
+            className="btn btn--download"
+            type="button"
+            onClick={onDownload}
+            disabled={sending}
+          >
+            {label}
+          </button>
+        </div>
+      )}
 
       {/* Off-screen d3-celestial mount. #celestial-map + sibling #celestial-form
           must both exist; see renderStarMap's DOM contract. */}

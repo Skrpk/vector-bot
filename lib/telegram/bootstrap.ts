@@ -15,6 +15,12 @@ export interface TelegramContext {
    * TODO(milestone-2): use this as the attribution key (who shared the link).
    */
   startParam: string | null;
+  /**
+   * Raw signed `initData` query string. Sent to the server (never trusted
+   * client-side) so it can validate the HMAC and derive the user's chat_id —
+   * see `send-to-chat`. Empty string outside Telegram.
+   */
+  initData: string;
 }
 
 /**
@@ -33,6 +39,7 @@ export async function initTelegram(): Promise<TelegramContext> {
     isTelegram: false,
     theme: DEFAULT_THEME,
     startParam: null,
+    initData: '',
   };
 
   if (typeof window === 'undefined') return fallback;
@@ -53,8 +60,10 @@ export async function initTelegram(): Promise<TelegramContext> {
     // TODO(milestone-2): validate initData server-side, then use start_param
     // for attribution logging. For now we only read it.
     const startParam = WebApp.initDataUnsafe?.start_param ?? null;
+    // Raw signed string — validated server-side before we trust it.
+    const initData = WebApp.initData ?? '';
 
-    return { isTelegram, theme, startParam };
+    return { isTelegram, theme, startParam, initData };
   } catch {
     // Any SDK failure -> behave like a plain browser.
     applyThemeToDocument(fallback.theme);

@@ -125,10 +125,28 @@ width, height })` — full-bleed phone wallpaper: same sky as the poster + **whi
 
 `lib/telegram/`:
 
-- `initTelegram() => Promise<{ isTelegram, theme, startParam }>` — applies Telegram
-  theme (or default dark in a plain browser), reads `start_param`. **No initData
-  validation** (that's Milestone 2).
+- `initTelegram() => Promise<{ isTelegram, theme, startParam, initData }>` — applies
+  Telegram theme (or default dark in a plain browser), reads `start_param`, and returns
+  the raw signed `initData` (empty outside Telegram; never trusted client-side — the
+  server validates it).
 - `theme.ts` — Telegram themeParams → `Theme`, CSS-var application, `DEFAULT_THEME`.
+- `verifyInitData.ts` — **server-side** HMAC validation of `initData` (Node `crypto`):
+  rebuilds the data-check-string, compares against `TELEGRAM_BOT_TOKEN`-derived hash
+  (constant-time), enforces `auth_date` freshness, returns the parsed `user`. This is
+  the Milestone-2 auth foundation, pulled forward for send-to-chat; reuse it for the
+  channel gate / attribution.
+- `sendPngToChat.ts` — **client** helper: `canvas.toBlob()` → multipart POST to
+  `/api/send-to-chat` (with `initData`); maps the "open the bot first" error.
+
+**Send-to-chat** (browser download is blocked inside Telegram's webview): in the Mini
+App the download button becomes **"Send {poster/wallpaper} to chat"**. `StarMapApp`
+POSTs the active canvas PNG + `initData` to **`/api/geocode`'s sibling
+`/api/send-to-chat`** (`app/api/send-to-chat/route.ts`, Node runtime, multipart),
+which validates `initData`, derives `chat_id` from `user.id`, and calls the Bot API
+**`sendDocument`** (not `sendPhoto` — preserves the PNG). Needs `TELEGRAM_BOT_TOKEN`
+and the user to have started the bot. Outside Telegram the button still downloads
+(`exportPng`); the render path stays 100% client-side (only the finished bytes are
+relayed). `canvasToPngBlob` factored out of `exportPng.ts` and shared.
 
 Location is **city-search only** (via `/api/geocode`); the old manual `lat,lng` entry
 was removed, so a place always carries an IANA timezone.
@@ -231,9 +249,14 @@ when names are on.
 `// TODO(milestone-2)`: true 300-DPI "HD" export behind the paid tier; art mesh-warp for
 edge-perfect accuracy; WebP art to cut asset size.
 
+**Done (from Milestone 2):** `initData` HMAC validation (`lib/telegram/verifyInitData.ts`)
+
+- **send-to-chat** relay (`/api/send-to-chat`, Bot API `sendDocument`) — see the
+  lib/telegram section above. Needs `TELEGRAM_BOT_TOKEN` set.
+
 **NOT built yet — Milestone 2 (marked `// TODO(milestone-2)` in code):**
-subscription / channel-membership gate (`getChatMember`), `initData` HMAC
-validation, `start_param` attribution logging, **persistent geocode cache** (DB, no
+subscription / channel-membership gate (`getChatMember`),
+`start_param` attribution logging, **persistent geocode cache** (DB, no
 PlanetScale yet), watermark on/off toggle, HD export resolution, server-side
 Satori/HD render, PDF, premium styles, payments. Also deferred: reverse geocoding /
 GPS "use my location".

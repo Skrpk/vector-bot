@@ -128,20 +128,11 @@ export default function InputForm({ disabled, onGenerate }: InputFormProps) {
       </div>
 
       <div className="form__field">
-        <label htmlFor="citysearch-input">Place</label>
+        <label htmlFor="citysearch-input">
+          Place (Type a city and pick from the list)
+        </label>
         <CitySearch onSelect={handleCitySelect} disabled={disabled} />
-        <p className="form__hint">
-          Type a city and pick from the list — its timezone is used so the sky matches
-          your local time.
-        </p>
       </div>
-
-      {location && (
-        <p className="form__selected">
-          {location.label}
-          {location.timezone && <span className="form__tz"> · {location.timezone}</span>}
-        </p>
-      )}
 
       {error && <p className="form__error">{error}</p>}
 

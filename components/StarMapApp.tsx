@@ -22,6 +22,7 @@ import { exportPng } from '@/lib/sky/exportPng';
 import { renderStarMap } from '@/lib/sky/renderStarMap';
 import type { SkyOptions, Theme } from '@/lib/sky/types';
 import { initTelegram } from '@/lib/telegram/bootstrap';
+import { sendPngToChat } from '@/lib/telegram/sendPngToChat';
 import { DEFAULT_THEME } from '@/lib/telegram/theme';
 
 const SKY_SIZE = 1000;
@@ -65,6 +66,13 @@ export default function StarMapApp() {
   const [bgColorId, setBgColorId] = useState<string>(DEFAULT_BG_COLOR_ID);
   const [artSetId, setArtSetId] = useState<string>(DEFAULT_ART_SET_ID);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [sending, setSending] = useState(false);
+  // Telegram context: inside the Mini App we send the image into the chat
+  // (browser download is blocked in the webview); elsewhere we download.
+  // `isTelegram` is state (drives the button label); initData is only read at
+  // send time, so a ref avoids re-renders.
+  const [isTelegram, setIsTelegram] = useState(false);
+  const initDataRef = useRef('');
   const fileStampRef = useRef<string | null>(null);
   // Last inputs, so toggling a sky option can re-render without re-entering the form.
   const lastPayloadRef = useRef<GeneratePayload | null>(null);
@@ -92,6 +100,8 @@ export default function StarMapApp() {
       .then((ctx) => {
         if (!active) return;
         setTheme(ctx.theme);
+        setIsTelegram(ctx.isTelegram);
+        initDataRef.current = ctx.initData;
         // TODO(milestone-2): send ctx.startParam to attribution logging.
         if (ctx.startParam) {
           console.info('[telegram] start_param:', ctx.startParam);
@@ -255,13 +265,52 @@ export default function StarMapApp() {
     const stamp = fileStampRef.current ?? '';
     const base = activeTab === 'wallpaper' ? 'star-wallpaper' : 'star-map';
     const suffix = activeTab === 'wallpaper' ? `-${wallpaperSizeId}` : `-${posterSizeId}`;
-    const name = stamp ? `${base}-${stamp}${suffix}` : `${base}${suffix}`;
+    const base_name = stamp ? `${base}-${stamp}${suffix}` : `${base}${suffix}`;
+    const name = base_name.endsWith('.png') ? base_name : `${base_name}.png`;
+
+    // Inside Telegram, a browser download is blocked in the webview — send the
+    // PNG into the chat as a file via the bot instead.
+    if (isTelegram) {
+      if (!initDataRef.current) {
+        setStatus('Cannot send — reopen the app from the bot.');
+        return;
+      }
+      setSending(true);
+      setStatus('Sending to your chat…');
+      try {
+        const result = await sendPngToChat(canvas, name, initDataRef.current, WATERMARK);
+        setStatus(result.ok ? 'Sent to your chat ✓' : result.error);
+      } catch (err) {
+        console.error(err);
+        setStatus('Could not send the image.');
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
+
     try {
       await exportPng(canvas, name);
     } catch (err) {
       console.error(err);
       setStatus('Could not export PNG.');
     }
+  };
+
+  // Scroll the preview into view. Programmatic `behavior:'smooth'` silently
+  // no-ops in some webviews (Telegram in-app browser / iOS Safari) and in
+  // headless Chromium, so we attempt smooth then fall back to an instant scroll
+  // if nothing actually moved — guaranteeing the user lands on the output.
+  const scrollOutputIntoView = () => {
+    const el = outputRef.current;
+    if (!el) return;
+    const startY = window.scrollY;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    window.setTimeout(() => {
+      if (Math.abs(window.scrollY - startY) < 2) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 350);
   };
 
   return (
@@ -277,10 +326,11 @@ export default function StarMapApp() {
           void handleGenerate(payload, skyOptions, bgColorId, artSetId);
           // On an explicit "Render", bring the preview into view so the user
           // immediately sees it appear (only here, not on settings re-renders).
-          outputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          scrollOutputIntoView();
         }}
       />
 
+      <div ref={outputRef} />
       <button
         type="button"
         className="settings-toggle"
@@ -308,7 +358,7 @@ export default function StarMapApp() {
         </div>
       )}
 
-      <div ref={outputRef} style={{ scrollMarginTop: 12 }}>
+      <div style={{ scrollMarginTop: 12 }}>
         <PosterCanvas
           posterRef={posterRef}
           wallpaperRef={wallpaperRef}
@@ -323,8 +373,11 @@ export default function StarMapApp() {
           wallpaperSizeId={wallpaperSizeId}
           onWallpaperSizeChange={setWallpaperSizeId}
           status={status}
+          loading={loading}
           canDownload={canDownload}
           onDownload={handleDownload}
+          inTelegram={isTelegram}
+          sending={sending}
         />
       </div>
 
