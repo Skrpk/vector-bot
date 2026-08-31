@@ -22,12 +22,23 @@ interface OpenMeteoResult {
   timezone?: string;
 }
 
+/**
+ * Open-Meteo only matches a query against names in the requested `language`, so a
+ * Cyrillic query with `language=en` returns nothing. Pick the language from the
+ * query's script (Ukrainian for Cyrillic — our audience), else English.
+ */
+function languageForQuery(q: string): string {
+  if (/[Ѐ-ӿ]/.test(q)) return 'uk'; // Cyrillic
+  return 'en';
+}
+
 export async function openMeteoSearch(
   q: string,
   limit: number,
   signal?: AbortSignal
 ): Promise<GeoResult[]> {
-  const url = `${OPEN_METEO}?name=${encodeURIComponent(q)}&count=${limit}&language=en&format=json`;
+  const language = languageForQuery(q);
+  const url = `${OPEN_METEO}?name=${encodeURIComponent(q)}&count=${limit}&language=${language}&format=json`;
   const res = await fetch(url, { signal, headers: { Accept: 'application/json' } });
   if (!res.ok) throw new Error(`Open-Meteo ${res.status}`);
   const json = (await res.json()) as { results?: OpenMeteoResult[] };
