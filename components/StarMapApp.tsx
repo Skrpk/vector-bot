@@ -67,6 +67,8 @@ export default function StarMapApp() {
   const [artSetId, setArtSetId] = useState<string>(DEFAULT_ART_SET_ID);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sending, setSending] = useState(false);
+  // True after the image was delivered to the chat — shows a big green confirmation.
+  const [sent, setSent] = useState(false);
   // Set when the server reports the user isn't subscribed to the channel; drives
   // the "subscribe first" prompt with a link into the channel.
   const [subscribeUrl, setSubscribeUrl] = useState<string | null>(null);
@@ -158,6 +160,8 @@ export default function StarMapApp() {
     lastPayloadRef.current = payload;
     setLoading(true);
     setCanDownload(false);
+    setSent(false);
+    setSubscribeUrl(null);
     setStatus('Малюємо небо…');
 
     const bg = bgColorById(bgId);
@@ -282,15 +286,19 @@ export default function StarMapApp() {
       }
       setSending(true);
       setSubscribeUrl(null);
+      setSent(false);
       setStatus(
         'Надсилаємо у ваш чат. Це може зайняти деякий час, зачекайте будь ласка...'
       );
       try {
         const result = await sendPngToChat(canvas, name, initDataRef.current, WATERMARK);
-        if (!result.ok && 'notSubscribed' in result) {
-          setSubscribeUrl(result.channelUrl || null);
+        if (result.ok) {
+          setSent(true);
+          setStatus('');
+        } else {
+          if ('notSubscribed' in result) setSubscribeUrl(result.channelUrl || null);
+          setStatus(result.error);
         }
-        setStatus(result.ok ? 'Надіслано у ваш чат ✓' : result.error);
       } catch (err) {
         console.error(err);
         setStatus('Не вдалося надіслати зображення.');
@@ -410,6 +418,7 @@ export default function StarMapApp() {
           onDownload={handleDownload}
           inTelegram={isTelegram}
           sending={sending}
+          sent={sent}
           subscribeUrl={subscribeUrl}
           onOpenChannel={() => {
             if (subscribeUrl) void openTelegramLink(subscribeUrl);

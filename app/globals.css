@@ -632,6 +632,62 @@ body {
   min-height: 18px;
 }
 
+/* --- Send success confirmation --- */
+.sent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 420px;
+  margin: 6px auto 0;
+  padding: 18px 16px;
+  text-align: center;
+  border: 1px solid rgba(46, 204, 113, 0.45);
+  border-radius: 14px;
+  background: rgba(46, 204, 113, 0.12);
+  animation: sent-in 0.35s ease-out both;
+}
+
+.sent__check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #2ecc71;
+  color: #04240f;
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 4px 16px rgba(46, 204, 113, 0.5);
+}
+
+.sent__text {
+  color: #34d17a;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+@keyframes sent-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sent {
+    animation: none;
+  }
+}
+
 /* --- Subscribe-first prompt (channel gate) --- */
 .subscribe {
   display: flex;

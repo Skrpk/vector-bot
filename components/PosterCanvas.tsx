@@ -32,6 +32,8 @@ interface PosterCanvasProps {
   inTelegram: boolean;
   /** A send-to-chat request is in flight (Telegram only). */
   sending: boolean;
+  /** True after the image was delivered — shows a big green confirmation. */
+  sent: boolean;
   /** Channel link to show when the user must subscribe first (else null). */
   subscribeUrl: string | null;
   /** Open the channel link (via the Telegram SDK). */
@@ -63,6 +65,7 @@ export default function PosterCanvas({
   onDownload,
   inTelegram,
   sending,
+  sent,
   subscribeUrl,
   onOpenChannel,
 }: PosterCanvasProps) {
@@ -189,7 +192,16 @@ export default function PosterCanvas({
         </p>
       )}
 
-      <p className="poster__status">{status}</p>
+      {sent && (
+        <div className="sent" role="status" aria-live="polite">
+          <span className="sent__check" aria-hidden="true">
+            ✓
+          </span>
+          <span className="sent__text">Надіслано у ваш чат</span>
+        </div>
+      )}
+
+      {status && <p className="poster__status">{status}</p>}
 
       {/* "Subscribe first" prompt — shown when the channel gate blocks a send. */}
       {subscribeUrl && (
