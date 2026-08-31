@@ -46,9 +46,9 @@ export interface PosterPaper {
   muted: string;
 }
 export const POSTER_PAPERS: readonly PosterPaper[] = [
-  { id: 'space', label: 'Deep space', bg: '#0b1020', text: '#f2f4ff', muted: '#8891b0' },
-  { id: 'black', label: 'Black', bg: '#000000', text: '#f2f4ff', muted: '#8891b0' },
-  { id: 'white', label: 'White', bg: '#ffffff', text: '#12131a', muted: '#555b70' },
+  { id: 'space', label: 'Космос', bg: '#0b1020', text: '#f2f4ff', muted: '#8891b0' },
+  { id: 'black', label: 'Чорний', bg: '#000000', text: '#f2f4ff', muted: '#8891b0' },
+  { id: 'white', label: 'Білий', bg: '#ffffff', text: '#12131a', muted: '#555b70' },
 ] as const;
 export const DEFAULT_POSTER_PAPER_ID = 'space';
 export function posterPaperById(id: string): PosterPaper {

@@ -70,3 +70,22 @@ export async function initTelegram(): Promise<TelegramContext> {
     return fallback;
   }
 }
+
+/**
+ * Open a Telegram deep link (e.g. a channel) from inside the Mini App. Uses the
+ * SDK's `openTelegramLink` when in Telegram (keeps the user in the app), else a
+ * plain new-tab navigation.
+ */
+export async function openTelegramLink(url: string): Promise<void> {
+  if (!url || typeof window === 'undefined') return;
+  try {
+    const WebApp = (await import('@twa-dev/sdk')).default;
+    if (WebApp.platform && WebApp.platform !== 'unknown') {
+      WebApp.openTelegramLink(url);
+      return;
+    }
+  } catch {
+    // fall through to a plain navigation
+  }
+  window.open(url, '_blank', 'noopener,noreferrer');
+}

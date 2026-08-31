@@ -36,29 +36,29 @@ export default function AboutArt({ open, onClose }: AboutArtProps) {
         <button
           type="button"
           className="modal__close"
-          aria-label="Close"
+          aria-label="Закрити"
           onClick={onClose}
         >
           ×
         </button>
 
         <h2 id="about-art-title" className="modal__title">
-          Constellation illustrations
+          Ілюстрації сузір’їв
         </h2>
 
-        <p className="modal__meta">Original artwork by Johan Meuris</p>
-        <p className="modal__meta">Source: Stellarium — Modern sky culture</p>
-        <p className="modal__meta">Licensed under the Free Art License 1.3</p>
+        <p className="modal__meta">Оригінальні ілюстрації — Johan Meuris</p>
+        <p className="modal__meta">Джерело: Stellarium — Modern sky culture</p>
+        <p className="modal__meta">Ліцензія Free Art License 1.3</p>
 
         <p className="modal__body">
-          Artwork has been modified by VECTOR for projection onto personalized star maps.
-          The modified constellation artwork remains available under the Free Art License
+          Ілюстрації змінено командою VECTOR для проєкції на персональні зоряні карти.
+          Змінені ілюстрації сузір’їв залишаються доступними за ліцензією Free Art License
           1.3.
         </p>
 
         <p className="modal__links">
           <a href={SOURCE_URL} target="_blank" rel="noopener noreferrer">
-            Original source
+            Оригінальне джерело
           </a>
           <span aria-hidden="true"> · </span>
           <a href={LICENSE_URL} target="_blank" rel="noopener noreferrer">

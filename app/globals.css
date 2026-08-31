@@ -632,6 +632,48 @@ body {
   min-height: 18px;
 }
 
+/* --- Subscribe-first prompt (channel gate) --- */
+.subscribe {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 420px;
+  margin: 4px auto 0;
+  padding: 14px 16px;
+  text-align: center;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(244, 183, 49, 0.08);
+}
+
+.subscribe__text {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.btn--subscribe {
+  width: 100%;
+  color: #2a1e00;
+  font-weight: 700;
+  background: linear-gradient(135deg, #ffd76a 0%, #f4b731 55%, #e79b23 100%);
+  box-shadow: 0 4px 14px rgba(231, 155, 35, 0.4);
+  transition:
+    filter 0.15s ease,
+    transform 0.1s ease;
+}
+
+.btn--subscribe:hover {
+  filter: brightness(1.04);
+}
+
+.btn--subscribe:active {
+  transform: translateY(1px);
+}
+
 /* d3-celestial renders into this; kept off-screen. It must have real, non-zero
    dimensions (not display:none) so its canvas gets a valid size. The sibling
    form is where d3-celestial injects its hidden date/lat/lon inputs. */

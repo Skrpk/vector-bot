@@ -21,7 +21,7 @@ import {
 import { exportPng } from '@/lib/sky/exportPng';
 import { renderStarMap } from '@/lib/sky/renderStarMap';
 import type { SkyOptions, Theme } from '@/lib/sky/types';
-import { initTelegram } from '@/lib/telegram/bootstrap';
+import { initTelegram, openTelegramLink } from '@/lib/telegram/bootstrap';
 import { sendPngToChat } from '@/lib/telegram/sendPngToChat';
 import { DEFAULT_THEME } from '@/lib/telegram/theme';
 
@@ -55,7 +55,7 @@ export default function StarMapApp() {
   const outputRef = useRef<HTMLDivElement | null>(null);
 
   const [theme, setTheme] = useState<Theme>(DEFAULT_THEME);
-  const [status, setStatus] = useState('Pick a date and place, then render the sky.');
+  const [status, setStatus] = useState('Оберіть дату й місце, а потім згенеруйте небо.');
   const [loading, setLoading] = useState(false);
   const [canDownload, setCanDownload] = useState(false);
   const [activeTab, setActiveTab] = useState<OutputTab>('wallpaper');
@@ -67,6 +67,9 @@ export default function StarMapApp() {
   const [artSetId, setArtSetId] = useState<string>(DEFAULT_ART_SET_ID);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sending, setSending] = useState(false);
+  // Set when the server reports the user isn't subscribed to the channel; drives
+  // the "subscribe first" prompt with a link into the channel.
+  const [subscribeUrl, setSubscribeUrl] = useState<string | null>(null);
   // Telegram context: inside the Mini App we send the image into the chat
   // (browser download is blocked in the webview); elsewhere we download.
   // `isTelegram` is state (drives the button label); initData is only read at
@@ -155,7 +158,7 @@ export default function StarMapApp() {
     lastPayloadRef.current = payload;
     setLoading(true);
     setCanDownload(false);
-    setStatus('Rendering the sky…');
+    setStatus('Малюємо небо…');
 
     const bg = bgColorById(bgId);
     const art = opts.constellationArt && hasArtSets() ? { set: artSet } : null;
@@ -222,11 +225,13 @@ export default function StarMapApp() {
 
       fileStampRef.current = payload.fileStamp;
       setCanDownload(true);
-      setStatus('Ready — switch tabs and download.');
+      setStatus('Готово — перемикайте вкладки та завантажуйте.');
     } catch (err) {
       console.error(err);
       setStatus(
-        err instanceof Error ? `Could not render: ${err.message}` : 'Render failed.'
+        err instanceof Error
+          ? `Не вдалося згенерувати: ${err.message}`
+          : 'Помилка генерації.'
       );
     } finally {
       setLoading(false);
@@ -272,17 +277,21 @@ export default function StarMapApp() {
     // PNG into the chat as a file via the bot instead.
     if (isTelegram) {
       if (!initDataRef.current) {
-        setStatus('Cannot send — reopen the app from the bot.');
+        setStatus('Не вдалося надіслати — відкрийте застосунок через бота.');
         return;
       }
       setSending(true);
-      setStatus('Sending to your chat…');
+      setSubscribeUrl(null);
+      setStatus('Надсилаємо у ваш чат…');
       try {
         const result = await sendPngToChat(canvas, name, initDataRef.current, WATERMARK);
-        setStatus(result.ok ? 'Sent to your chat ✓' : result.error);
+        if (!result.ok && 'notSubscribed' in result) {
+          setSubscribeUrl(result.channelUrl || null);
+        }
+        setStatus(result.ok ? 'Надіслано у ваш чат ✓' : result.error);
       } catch (err) {
         console.error(err);
-        setStatus('Could not send the image.');
+        setStatus('Не вдалося надіслати зображення.');
       } finally {
         setSending(false);
       }
@@ -293,7 +302,7 @@ export default function StarMapApp() {
       await exportPng(canvas, name);
     } catch (err) {
       console.error(err);
-      setStatus('Could not export PNG.');
+      setStatus('Не вдалося зберегти PNG.');
     }
   };
 
@@ -316,8 +325,8 @@ export default function StarMapApp() {
   return (
     <main className="app">
       <header className="app__header">
-        <h1>Star Map Poster</h1>
-        <p>The sky exactly as it looked at your date and place.</p>
+        <h1>Зоряна карта</h1>
+        <p>Небо саме таким, яким воно було у вашу дату й у вашому місці.</p>
       </header>
 
       <InputForm
@@ -338,7 +347,7 @@ export default function StarMapApp() {
         aria-controls="sky-settings"
         onClick={() => setSettingsOpen((v) => !v)}
       >
-        <span aria-hidden="true">⚙</span> Settings
+        <span aria-hidden="true">⚙</span> Налаштування
         <span className="settings-toggle__chevron" aria-hidden="true">
           {settingsOpen ? '▾' : '▸'}
         </span>
@@ -378,11 +387,15 @@ export default function StarMapApp() {
           onDownload={handleDownload}
           inTelegram={isTelegram}
           sending={sending}
+          subscribeUrl={subscribeUrl}
+          onOpenChannel={() => {
+            if (subscribeUrl) void openTelegramLink(subscribeUrl);
+          }}
         />
       </div>
 
       <footer className="app__credits">
-        Geocoding by Open-Meteo · Places © OpenStreetMap contributors
+        Геокодування — Open-Meteo · Дані про місця © OpenStreetMap contributors
       </footer>
     </main>
   );

@@ -136,17 +136,29 @@ width, height })` — full-bleed phone wallpaper: same sky as the poster + **whi
   the Milestone-2 auth foundation, pulled forward for send-to-chat; reuse it for the
   channel gate / attribution.
 - `sendPngToChat.ts` — **client** helper: `canvas.toBlob()` → multipart POST to
-  `/api/send-to-chat` (with `initData`); maps the "open the bot first" error.
+  `/api/send-to-chat` (with `initData`); maps the "open the bot first" and
+  "not-subscribed" (→ `channelUrl`) errors to Ukrainian messages.
+- `channelMembership.ts` — **server** `checkChannelMembership(botToken, userId)`: the
+  channel-subscription gate. Calls Bot API `getChatMember(TELEGRAM_CHANNEL_ID, userId)`
+  (bot must be an **admin** of the channel). Member = creator/administrator/member or
+  restricted-with-`is_member`. `left`/`kicked`/`user not found` → not subscribed (returns
+  a `channelUrl` from `TELEGRAM_CHANNEL_URL`, or derived from an `@username` channel id).
+  Unset `TELEGRAM_CHANNEL_ID` → gate disabled. A `getChatMember` error ("chat not found"
+  = bot not admin / wrong id) is **fail-open**: the route logs it and still sends.
+- `bootstrap.ts` `openTelegramLink(url)` — opens the channel via the SDK inside Telegram
+  (else `window.open`).
 
 **Send-to-chat** (browser download is blocked inside Telegram's webview): in the Mini
-App the download button becomes **"Send {poster/wallpaper} to chat"**. `StarMapApp`
-POSTs the active canvas PNG + `initData` to **`/api/geocode`'s sibling
-`/api/send-to-chat`** (`app/api/send-to-chat/route.ts`, Node runtime, multipart),
-which validates `initData`, derives `chat_id` from `user.id`, and calls the Bot API
-**`sendDocument`** (not `sendPhoto` — preserves the PNG). Needs `TELEGRAM_BOT_TOKEN`
-and the user to have started the bot. Outside Telegram the button still downloads
-(`exportPng`); the render path stays 100% client-side (only the finished bytes are
-relayed). `canvasToPngBlob` factored out of `exportPng.ts` and shared.
+App the download button becomes **"Надіслати {постер/шпалери} у чат"** (all UI is
+**Ukrainian**). `StarMapApp` POSTs the active canvas PNG + `initData` to
+**`/api/send-to-chat`** (`app/api/send-to-chat/route.ts`, Node runtime, multipart),
+which: validates `initData` → **checks channel membership** → derives `chat_id` from
+`user.id` → calls Bot API **`sendDocument`** (not `sendPhoto` — preserves the PNG). If
+not subscribed it returns `403 {error:'not-subscribed', channelUrl}` and the UI shows a
+**"Підписатися на канал"** prompt (opens the channel, then the user taps send again).
+Needs `TELEGRAM_BOT_TOKEN`; the user must have started the bot. Outside Telegram the
+button still downloads (`exportPng`); the render path stays 100% client-side (only the
+finished bytes are relayed). `canvasToPngBlob` factored out of `exportPng.ts` and shared.
 
 Location is **city-search only** (via `/api/geocode`); the old manual `lat,lng` entry
 was removed, so a place always carries an IANA timezone.
@@ -249,13 +261,13 @@ when names are on.
 `// TODO(milestone-2)`: true 300-DPI "HD" export behind the paid tier; art mesh-warp for
 edge-perfect accuracy; WebP art to cut asset size.
 
-**Done (from Milestone 2):** `initData` HMAC validation (`lib/telegram/verifyInitData.ts`)
-
-- **send-to-chat** relay (`/api/send-to-chat`, Bot API `sendDocument`) — see the
-  lib/telegram section above. Needs `TELEGRAM_BOT_TOKEN` set.
+**Done (from Milestone 2):** `initData` HMAC validation (`lib/telegram/verifyInitData.ts`);
+**send-to-chat** relay (`/api/send-to-chat`, Bot API `sendDocument`); **channel-membership
+gate** (`getChatMember` via `lib/telegram/channelMembership.ts`, `TELEGRAM_CHANNEL_ID` /
+`TELEGRAM_CHANNEL_URL`) — see the lib/telegram section above. Needs `TELEGRAM_BOT_TOKEN`
+set; the bot must be an admin of the gated channel.
 
 **NOT built yet — Milestone 2 (marked `// TODO(milestone-2)` in code):**
-subscription / channel-membership gate (`getChatMember`),
 `start_param` attribution logging, **persistent geocode cache** (DB, no
 PlanetScale yet), watermark on/off toggle, HD export resolution, server-side
 Satori/HD render, PDF, premium styles, payments. Also deferred: reverse geocoding /

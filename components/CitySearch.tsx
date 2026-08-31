@@ -99,7 +99,7 @@ export default function CitySearch({ onSelect, disabled }: CitySearchProps) {
       <input
         type="text"
         autoComplete="off"
-        placeholder="Search a city — e.g. Prague"
+        placeholder="Пошук міста — напр. Прага"
         value={query}
         disabled={disabled}
         onChange={(e) => setQuery(e.target.value)}
@@ -113,9 +113,9 @@ export default function CitySearch({ onSelect, disabled }: CitySearchProps) {
 
       {open && (
         <ul className="citysearch__list">
-          {loading && <li className="citysearch__msg">Searching…</li>}
+          {loading && <li className="citysearch__msg">Пошук…</li>}
           {!loading && noResults && (
-            <li className="citysearch__msg">No matching places.</li>
+            <li className="citysearch__msg">Нічого не знайдено.</li>
           )}
           {!loading &&
             results.map((r, i) => (

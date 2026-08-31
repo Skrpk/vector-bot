@@ -34,7 +34,7 @@ interface InputFormProps {
   onGenerate: (payload: GeneratePayload) => void;
 }
 
-const DEFAULT_TITLE = 'THE NIGHT SKY';
+const DEFAULT_TITLE = 'НІЧНЕ НЕБО';
 
 function defaultDateTimeLocal(): string {
   const d = new Date();
@@ -51,7 +51,7 @@ function formatDisplayDate(wall: string): string {
   if (!m) return wall;
   const [, y, mo, d, h, mi] = m.map(Number);
   const dt = new Date(y, mo - 1, d, h, mi); // local construction = shows typed numbers
-  return new Intl.DateTimeFormat('en-US', {
+  return new Intl.DateTimeFormat('uk-UA', {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
@@ -81,13 +81,13 @@ export default function InputForm({ disabled, onGenerate }: InputFormProps) {
     setError(null);
 
     if (!location) {
-      setError('Search for a city and pick it from the list first.');
+      setError('Спершу знайдіть місто та оберіть його зі списку.');
       return;
     }
 
     const instant = resolveInstant(dateTime, location.timezone);
     if (!instant || Number.isNaN(instant.getTime())) {
-      setError('Please choose a valid date and time.');
+      setError('Оберіть коректну дату й час.');
       return;
     }
 
@@ -106,11 +106,11 @@ export default function InputForm({ disabled, onGenerate }: InputFormProps) {
   return (
     <form className="form" onSubmit={handleSubmit}>
       <div className="form__field">
-        <label htmlFor="title">Title</label>
+        <label htmlFor="title">Заголовок</label>
         <input
           id="title"
           type="text"
-          placeholder="e.g. THE NIGHT SKY"
+          placeholder="напр. НІЧНЕ НЕБО"
           value={title}
           maxLength={40}
           onChange={(e) => setTitle(e.target.value)}
@@ -118,7 +118,7 @@ export default function InputForm({ disabled, onGenerate }: InputFormProps) {
       </div>
 
       <div className="form__field">
-        <label htmlFor="date">Date &amp; time</label>
+        <label htmlFor="date">Дата й час</label>
         <input
           id="date"
           type="datetime-local"
@@ -129,7 +129,7 @@ export default function InputForm({ disabled, onGenerate }: InputFormProps) {
 
       <div className="form__field">
         <label htmlFor="citysearch-input">
-          Place (Type a city and pick from the list)
+          Місце (введіть місто й оберіть зі списку)
         </label>
         <CitySearch onSelect={handleCitySelect} disabled={disabled} />
       </div>
@@ -137,7 +137,7 @@ export default function InputForm({ disabled, onGenerate }: InputFormProps) {
       {error && <p className="form__error">{error}</p>}
 
       <button className="btn btn--primary" type="submit" disabled={disabled}>
-        {disabled ? 'Rendering…' : 'Render star map'}
+        {disabled ? 'Малюємо…' : 'Створити зоряну карту'}
       </button>
     </form>
   );

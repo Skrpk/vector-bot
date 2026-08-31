@@ -1,7 +1,9 @@
 import { canvasToPngBlob } from '@/lib/sky/exportPng';
 
 export type SendResult =
-  { ok: true } | { ok: false; error: string; needsBotStart?: boolean };
+  | { ok: true }
+  | { ok: false; error: string; needsBotStart?: boolean }
+  | { ok: false; notSubscribed: true; error: string; channelUrl: string };
 
 /**
  * Send a canvas as a PNG document into the user's Telegram chat, via the
@@ -20,7 +22,7 @@ export async function sendPngToChat(
   try {
     blob = await canvasToPngBlob(canvas);
   } catch {
-    return { ok: false, error: 'Could not read the image.' };
+    return { ok: false, error: 'Не вдалося зчитати зображення.' };
   }
 
   const form = new FormData();
@@ -33,22 +35,37 @@ export async function sendPngToChat(
   try {
     res = await fetch('/api/send-to-chat', { method: 'POST', body: form });
   } catch {
-    return { ok: false, error: 'Network error — could not send.' };
+    return { ok: false, error: 'Помилка мережі — не вдалося надіслати.' };
   }
 
   const data = (await res.json().catch(() => null)) as {
     ok: boolean;
     error?: string;
+    channelUrl?: string;
   } | null;
 
   if (res.ok && data?.ok) return { ok: true };
 
+  if (data?.error === 'not-subscribed') {
+    return {
+      ok: false,
+      notSubscribed: true,
+      channelUrl: data.channelUrl ?? '',
+      error:
+        'Підпишіться на канал, щоб надіслати зображення: перейдіть за посиланням, ' +
+        'натисніть «Підписатися», поверніться та натисніть кнопку ще раз.',
+    };
+  }
+
   if (data?.error === 'open-bot-first') {
     return {
       ok: false,
-      error: 'Open a chat with the bot first, then try again.',
+      error: 'Спершу відкрийте чат із ботом, потім спробуйте ще раз.',
       needsBotStart: true,
     };
   }
-  return { ok: false, error: data?.error ?? 'Could not send the image.' };
+  // Any other server/Telegram error is technical (often an English Telegram
+  // description) — log it but show the user a localized generic message.
+  if (data?.error) console.error('[send-to-chat]', data.error);
+  return { ok: false, error: 'Не вдалося надіслати зображення.' };
 }

@@ -2,9 +2,9 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Star Map Poster',
+  title: 'Зоряна карта',
   description:
-    'Generate a personalized star map — the sky exactly as it looked at a given date and place.',
+    'Створіть персональну зоряну карту — небо саме таким, яким воно було у певну дату й у певному місці.',
 };
 
 export const viewport: Viewport = {
@@ -16,7 +16,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
-    <html lang="en" data-theme="dark">
+    <html lang="uk" data-theme="dark">
       <body>{children}</body>
     </html>
   );

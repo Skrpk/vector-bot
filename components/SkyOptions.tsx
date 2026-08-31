@@ -18,16 +18,16 @@ interface SkyOptionsProps {
 
 const ITEMS: { key: keyof SkyOptions; label: string }[] = [
   ...(ART_SETS.length > 0
-    ? [{ key: 'constellationArt' as const, label: 'Constellation art' }]
+    ? [{ key: 'constellationArt' as const, label: 'Ілюстрації сузір’їв' }]
     : []),
-  { key: 'milkyWay', label: 'Milky Way' },
-  { key: 'constellations', label: 'Constellations' },
-  { key: 'constellationNames', label: 'Constellation names' },
+  { key: 'milkyWay', label: 'Чумацький Шлях' },
+  { key: 'constellations', label: 'Сузір’я' },
+  { key: 'constellationNames', label: 'Назви сузір’їв' },
 ];
 
 const BG_ITEMS: { id: keyof typeof BG_COLORS; label: string }[] = [
-  { id: 'space', label: 'Deep space' },
-  { id: 'black', label: 'Black' },
+  { id: 'space', label: 'Космос' },
+  { id: 'black', label: 'Чорний' },
 ];
 
 /**
@@ -50,7 +50,7 @@ export default function SkyOptionsControls({
   return (
     <>
       <fieldset className="skyopts" disabled={disabled}>
-        <legend className="skyopts__legend">Sky options</legend>
+        <legend className="skyopts__legend">Налаштування неба</legend>
 
         <div className="skyopts__row">
           {ITEMS.map(({ key, label }) => (
@@ -71,14 +71,14 @@ export default function SkyOptionsControls({
             className="skyopts__about"
             onClick={() => setAboutOpen(true)}
           >
-            <span aria-hidden="true">ⓘ</span> About constellation illustrations
+            <span aria-hidden="true">ⓘ</span> Про ілюстрації сузір’їв
           </button>
         )}
 
         {showArtSets && (
           <div className="skyopts__bg">
-            <span className="skyopts__bg-label">Art style</span>
-            <div className="sizes" role="group" aria-label="Illustration set">
+            <span className="skyopts__bg-label">Стиль ілюстрацій</span>
+            <div className="sizes" role="group" aria-label="Набір ілюстрацій">
               {ART_SETS.map((set) => (
                 <button
                   key={set.id}
@@ -95,8 +95,8 @@ export default function SkyOptionsControls({
         )}
 
         <div className="skyopts__bg">
-          <span className="skyopts__bg-label">Background</span>
-          <div className="sizes" role="group" aria-label="Background colour">
+          <span className="skyopts__bg-label">Тло</span>
+          <div className="sizes" role="group" aria-label="Колір тла">
             {BG_ITEMS.map(({ id, label }) => (
               <button
                 key={id}

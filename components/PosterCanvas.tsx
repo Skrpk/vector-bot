@@ -32,6 +32,10 @@ interface PosterCanvasProps {
   inTelegram: boolean;
   /** A send-to-chat request is in flight (Telegram only). */
   sending: boolean;
+  /** Channel link to show when the user must subscribe first (else null). */
+  subscribeUrl: string | null;
+  /** Open the channel link (via the Telegram SDK). */
+  onOpenChannel: () => void;
 }
 
 /**
@@ -59,16 +63,18 @@ export default function PosterCanvas({
   onDownload,
   inTelegram,
   sending,
+  subscribeUrl,
+  onOpenChannel,
 }: PosterCanvasProps) {
-  const kind = activeTab === 'wallpaper' ? 'wallpaper' : 'poster';
+  const kindWord = activeTab === 'wallpaper' ? 'шпалери' : 'постер';
   const label = inTelegram
     ? sending
-      ? 'Sending…'
-      : `Send ${kind} to chat`
-    : `↓ Download ${kind} PNG`;
+      ? 'Надсилаємо…'
+      : `Надіслати ${kindWord} у чат`
+    : `↓ Завантажити ${kindWord} PNG`;
   return (
     <div className="poster">
-      <div className="tabs" role="tablist" aria-label="Output type">
+      <div className="tabs" role="tablist" aria-label="Тип зображення">
         <button
           type="button"
           role="tab"
@@ -76,7 +82,7 @@ export default function PosterCanvas({
           className={`tabs__tab${activeTab === 'wallpaper' ? ' tabs__tab--active' : ''}`}
           onClick={() => onTabChange('wallpaper')}
         >
-          Wallpaper
+          Шпалери
         </button>
         <button
           type="button"
@@ -85,13 +91,13 @@ export default function PosterCanvas({
           className={`tabs__tab${activeTab === 'poster' ? ' tabs__tab--active' : ''}`}
           onClick={() => onTabChange('poster')}
         >
-          Poster
+          Постер
         </button>
       </div>
 
       {activeTab === 'poster' && (
         <>
-          <div className="sizes" role="group" aria-label="Poster size">
+          <div className="sizes" role="group" aria-label="Розмір постера">
             {POSTER_SIZES.map((size) => (
               <button
                 key={size.id}
@@ -106,7 +112,7 @@ export default function PosterCanvas({
               </button>
             ))}
           </div>
-          <div className="sizes" role="group" aria-label="Poster paper">
+          <div className="sizes" role="group" aria-label="Папір постера">
             {POSTER_PAPERS.map((paper) => (
               <button
                 key={paper.id}
@@ -130,7 +136,7 @@ export default function PosterCanvas({
       )}
 
       {activeTab === 'wallpaper' && (
-        <div className="sizes" role="group" aria-label="Wallpaper aspect ratio">
+        <div className="sizes" role="group" aria-label="Співвідношення сторін шпалер">
           {WALLPAPER_SIZES.map((size) => (
             <button
               key={size.id}
@@ -154,7 +160,7 @@ export default function PosterCanvas({
           className="poster__canvas"
           width={POSTER_SIZES[0].w}
           height={POSTER_SIZES[0].h}
-          aria-label="Star map poster preview"
+          aria-label="Перегляд постера зоряної карти"
           hidden={activeTab !== 'poster'}
         />
         <canvas
@@ -162,7 +168,7 @@ export default function PosterCanvas({
           className="wallpaper__canvas"
           width={WALLPAPER_SIZES[2].w}
           height={WALLPAPER_SIZES[2].h}
-          aria-label="Star map wallpaper preview"
+          aria-label="Перегляд шпалер зоряної карти"
           hidden={activeTab !== 'wallpaper'}
         />
 
@@ -171,19 +177,32 @@ export default function PosterCanvas({
         {loading && (
           <div className="canvas-loader" role="status" aria-live="polite">
             <span className="canvas-loader__spinner" aria-hidden="true" />
-            <span className="canvas-loader__text">Rendering the sky…</span>
+            <span className="canvas-loader__text">Малюємо небо…</span>
           </div>
         )}
       </div>
 
       {activeTab === 'wallpaper' && (
         <p className="poster__note">
-          Full-bleed stars · white text — pick your phone&apos;s aspect ratio and set it
-          as your wallpaper.
+          Зорі на весь екран · білий текст — оберіть співвідношення сторін вашого телефона
+          та встановіть як шпалери.
         </p>
       )}
 
       <p className="poster__status">{status}</p>
+
+      {/* "Subscribe first" prompt — shown when the channel gate blocks a send. */}
+      {subscribeUrl && (
+        <div className="subscribe" role="group" aria-label="Підписка на канал">
+          <p className="subscribe__text">
+            Щоб надіслати зображення, підпишіться на наш канал. Натисніть «Підписатися»,
+            поверніться та натисніть кнопку ще раз.
+          </p>
+          <button className="btn btn--subscribe" type="button" onClick={onOpenChannel}>
+            Підписатися на канал
+          </button>
+        </div>
+      )}
 
       {/* Floating gold action bar — only present once an output is ready.
           Downloads in a browser; sends the image to the chat inside Telegram. */}

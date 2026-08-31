@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { verifyInitData } from '@/lib/telegram/verifyInitData';
+import { checkChannelMembership } from '@/lib/telegram/channelMembership';
 
 // Relay route: the render stays 100% client-side (hard constraint). The client
 // POSTs the finished PNG here; we validate the Telegram initData signature,
@@ -33,6 +34,19 @@ export async function POST(req: Request) {
 
   const verified = verifyInitData(initData, botToken);
   if (!verified.ok) return fail(401, `unauthorized: ${verified.reason}`);
+
+  // Channel-subscription gate (no-op if TELEGRAM_CHANNEL_ID is unset).
+  const membership = await checkChannelMembership(botToken, verified.user.id);
+  if ('error' in membership) {
+    // A misconfigured gate (e.g. bot not admin) shouldn't hard-block delivery —
+    // log and fall through so the image still sends.
+    console.error('[send-to-chat] membership check failed:', membership.error);
+  } else if ('subscribed' in membership && membership.subscribed === false) {
+    return NextResponse.json(
+      { ok: false, error: 'not-subscribed', channelUrl: membership.channelUrl },
+      { status: 403 }
+    );
+  }
 
   const file = form.get('file');
   if (!(file instanceof Blob)) return fail(400, 'missing file');
