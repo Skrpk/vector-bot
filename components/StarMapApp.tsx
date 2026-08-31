@@ -282,7 +282,9 @@ export default function StarMapApp() {
       }
       setSending(true);
       setSubscribeUrl(null);
-      setStatus('Надсилаємо у ваш чат…');
+      setStatus(
+        'Надсилаємо у ваш чат. Це може зайняти деякий час, зачекайте будь ласка...'
+      );
       try {
         const result = await sendPngToChat(canvas, name, initDataRef.current, WATERMARK);
         if (!result.ok && 'notSubscribed' in result) {
