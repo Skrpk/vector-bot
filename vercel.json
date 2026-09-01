@@ -1,6 +1,3 @@
 {
-  "crons": [
-    { "path": "/api/cron/apod", "schedule": "0 9 * * *" },
-    { "path": "/api/cron/apod", "schedule": "0 10 * * *" }
-  ]
+  "crons": [{ "path": "/api/cron/apod", "schedule": "0 9 * * *" }]
 }
