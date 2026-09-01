@@ -21,6 +21,10 @@ export const users = pgTable('users', {
   // cron will query `where apodSubscribed = true`.
   apodSubscribed: boolean('apod_subscribed').notNull().default(false),
   apodSubscribedAt: timestamp('apod_subscribed_at', { withTimezone: true }),
+  // Set true when a broadcast send fails because the user blocked the bot / is
+  // deactivated — the broadcast then skips them. Cleared on any interaction
+  // (upsertUser), so starting the bot again automatically un-blocks them.
+  blocked: boolean('blocked').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

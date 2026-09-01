@@ -256,7 +256,8 @@ both places, so `DATABASE_URL` is the only difference.
 `lib/db/`:
 
 - `schema.ts` — three tables. **`users`** (`id` = Telegram user id PK, username/first_name/
-  language_code, **`apod_subscribed`** bool + `apod_subscribed_at`, timestamps).
+  language_code, **`apod_subscribed`** bool + `apod_subscribed_at`, **`blocked`** bool
+  (set when a broadcast send fails; cleared on any interaction), timestamps).
   **`downloads`** (uuid PK, `user_id` FK, title, event_date, place_name/lat/lng/timezone,
   `output_kind`, `size_id`, `bg_color_id`, `sky_options` jsonb, created_at). **`apod_posts`**
   (`apod_date` PK, title/explanation/**explanation_uk**/media_type/url/hdurl/thumbnail_url/copyright,
@@ -318,7 +319,11 @@ NULL RETURNING` — a second run returns `skipped:'already broadcast'`) → for 
   a member gets the post; a subscriber who has since **left the channel** gets a Ukrainian
   "rejoin the channel" nudge instead (they stay subscribed, so posts resume when they
   rejoin — counted as `reminded`). A "bot blocked / chat not found" send error
-  **auto-unsubscribes** that user (`pruned`). Response: `{sent, failed, pruned, reminded}`.
+  a "bot blocked / user deactivated / chat not found" send error marks the user
+  **`blocked`** (`setBlocked`) — they stay subscribed but the broadcast skips them
+  (`getApodSubscriberIds` filters `blocked=false`); the flag is **cleared on any
+  interaction** (`upsertUser` sets `blocked=false`), so starting the bot again resumes
+  posts. Response: `{sent, failed, blocked, reminded}`.
 - **Send** (`lib/telegram/sendApod.ts` + `botApi.ts`) — delivers the **real media inline**
   so the user never follows a link: image → `sendPhoto`; **.gif** → `sendAnimation`; direct
   **video** (.mp4…) → `sendVideo` by URL when ≤20 MB, else **download + multipart upload**

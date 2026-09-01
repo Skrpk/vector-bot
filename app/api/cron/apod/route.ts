@@ -9,7 +9,7 @@ import {
   getApodPostByDate,
   getApodSubscriberIds,
   saveApodPost,
-  setApodSubscription,
+  setBlocked,
 } from '@/lib/db/queries';
 
 // Daily NASA APOD broadcast. Triggered by Vercel Cron (see vercel.json). Fetches
@@ -23,9 +23,10 @@ export const maxDuration = 300;
 
 // Telegram allows ~30 messages/sec across users; a small gap keeps us safe.
 const SEND_GAP_MS = 40;
-// Errors that mean the user can't be reached again — prune their subscription.
-const DEAD_CHAT =
-  /bot was blocked|chat not found|user is deactivated|bot can't initiate/i;
+// Errors meaning the user is unreachable — mark them blocked (broadcast skips
+// them). They stay subscribed; interacting with the bot clears the flag.
+const BLOCKED_ERR =
+  /bot was blocked|user is deactivated|chat not found|bot can't initiate/i;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -124,7 +125,7 @@ export async function GET(req: Request) {
   const cache: MediaCache = {};
   let sent = 0;
   let failed = 0;
-  let pruned = 0;
+  let blocked = 0;
   let reminded = 0;
   for (const chatId of subscribers) {
     // Re-check channel membership at send time: a subscriber may have left the
@@ -133,8 +134,17 @@ export async function GET(req: Request) {
     // or no-channel config falls through to sending, matching the other gates.
     const membership = await checkChannelMembership(botToken, chatId);
     if ('subscribed' in membership && membership.subscribed === false) {
-      await sendChannelReminder(botToken, chatId, membership.channelUrl).catch(() => {});
-      reminded++;
+      const rem = await sendChannelReminder(
+        botToken,
+        chatId,
+        membership.channelUrl
+      ).catch(() => null);
+      if (rem && !rem.ok && rem.description && BLOCKED_ERR.test(rem.description)) {
+        await setBlocked(chatId, true).catch(() => {});
+        blocked++;
+      } else {
+        reminded++;
+      }
       if (SEND_GAP_MS) await sleep(SEND_GAP_MS);
       continue;
     }
@@ -144,9 +154,11 @@ export async function GET(req: Request) {
       sent++;
     } else {
       failed++;
-      if (result.description && DEAD_CHAT.test(result.description)) {
-        await setApodSubscription(chatId, false).catch(() => {});
-        pruned++;
+      if (result.description && BLOCKED_ERR.test(result.description)) {
+        // Blocked/deactivated — skip them going forward (they stay subscribed;
+        // interacting with the bot clears `blocked` via upsertUser).
+        await setBlocked(chatId, true).catch(() => {});
+        blocked++;
       }
     }
     if (SEND_GAP_MS) await sleep(SEND_GAP_MS);
@@ -158,7 +170,7 @@ export async function GET(req: Request) {
     subscribers: subscribers.length,
     sent,
     failed,
-    pruned,
+    blocked,
     reminded,
   });
 }

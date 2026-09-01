@@ -11,7 +11,11 @@ import {
 import type { DownloadMeta } from './downloadMeta';
 import type { TelegramUser } from '@/lib/telegram/verifyInitData';
 
-/** Insert the user (or refresh their profile fields) from validated initData. */
+/**
+ * Insert the user (or refresh their profile fields). Called whenever we receive
+ * anything FROM the user, so it also clears `blocked` — hearing from them proves
+ * the bot is reachable again (i.e. they started it back up).
+ */
 export async function upsertUser(user: TelegramUser): Promise<void> {
   await getDb()
     .insert(users)
@@ -27,9 +31,18 @@ export async function upsertUser(user: TelegramUser): Promise<void> {
         username: user.username ?? null,
         firstName: user.first_name ?? null,
         languageCode: user.language_code ?? null,
+        blocked: false,
         updatedAt: sql`now()`,
       },
     });
+}
+
+/** Mark a user blocked (broadcast will skip them) or reachable again. */
+export async function setBlocked(userId: number, blocked: boolean): Promise<void> {
+  await getDb()
+    .update(users)
+    .set({ blocked, updatedAt: sql`now()` })
+    .where(eq(users.id, userId));
 }
 
 /** Log one successful download/send. Metadata only — no image. */
@@ -90,12 +103,12 @@ export async function isApodSubscribed(userId: number): Promise<boolean> {
   return rows[0]?.subscribed ?? false;
 }
 
-/** Telegram ids of everyone subscribed to the APOD broadcast. */
+/** Telegram ids of everyone subscribed to the APOD broadcast (excluding blocked). */
 export async function getApodSubscriberIds(): Promise<number[]> {
   const rows = await getDb()
     .select({ id: users.id })
     .from(users)
-    .where(eq(users.apodSubscribed, true));
+    .where(and(eq(users.apodSubscribed, true), eq(users.blocked, false)));
   return rows.map((r) => r.id);
 }
 
