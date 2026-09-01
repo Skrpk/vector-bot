@@ -38,6 +38,25 @@ export async function GET(req: Request) {
     }
   }
 
+  // Fire only at noon Kyiv time. Vercel Cron is UTC-only and can't follow DST, so
+  // the job is scheduled at both 09:00 and 10:00 UTC and we gate on the real Kyiv
+  // hour here — exactly one of the two lands on 12:00 Kyiv year-round (EET/EEST).
+  // `?force=1` bypasses the gate for manual testing.
+  const force = new URL(req.url).searchParams.get('force') === '1';
+  const kyivHour = Number(
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/Kyiv',
+      hour: '2-digit',
+      hourCycle: 'h23',
+    }).format(new Date())
+  );
+  if (!force && kyivHour !== 12) {
+    return NextResponse.json({
+      ok: true,
+      skipped: `not noon in Kyiv (hour ${kyivHour})`,
+    });
+  }
+
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
   if (!botToken) {
     return NextResponse.json({ ok: false, error: 'no bot token' }, { status: 500 });

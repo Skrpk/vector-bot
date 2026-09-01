@@ -308,11 +308,14 @@ Subscribers get NASA's **Astronomy Picture of the Day** in their chat, once a da
   `getFreshApodPost(24h)` returns the latest still-fresh row.
 - **`/api/cron/apod`** (GET, Node, `maxDuration:300`) — the daily job. Auth: if
   `CRON_SECRET` is set, requires `Authorization: Bearer <CRON_SECRET>` (Vercel Cron sends
-  this); unset → open (local). Steps: fetch → `saveApodPost` → **`claimApodBroadcast(date)`**
-  (atomic `UPDATE … WHERE broadcast_at IS NULL RETURNING` — a second run returns
-  `skipped:'already broadcast'`) → send to every `getApodSubscriberIds()` with a ~40ms gap;
-  a "bot blocked / chat not found" error **auto-unsubscribes** that user (`pruned`).
-  Scheduled `0 12 * * *` **UTC** in `vercel.json` (adjust for local noon).
+  this); unset → open (local). **Noon-Kyiv gate:** Vercel Cron is UTC-only / no DST, so
+  `vercel.json` schedules **both `0 9` and `0 10` UTC** and the handler runs only when the
+  real `Europe/Kyiv` hour is 12 (so exactly one fires at noon Kyiv year-round, EET/EEST);
+  `?force=1` bypasses the gate for manual testing. Then: fetch (+ Ukrainian translation) →
+  `saveApodPost` → **`claimApodBroadcast(date)`** (atomic `UPDATE … WHERE broadcast_at IS
+NULL RETURNING` — a second run returns `skipped:'already broadcast'`) → send to every
+  `getApodSubscriberIds()` with a ~40ms gap; a "bot blocked / chat not found" error
+  **auto-unsubscribes** that user (`pruned`).
 - **Send** (`lib/telegram/sendApod.ts` + `botApi.ts`) — delivers the **real media inline**
   so the user never follows a link: image → `sendPhoto`; **.gif** → `sendAnimation`; direct
   **video** (.mp4…) → `sendVideo` by URL when ≤20 MB, else **download + multipart upload**
@@ -321,8 +324,13 @@ Subscribers get NASA's **Astronomy Picture of the Day** in their chat, once a da
   description ride as the media's **caption** (`buildCaption`), which prefers the Ukrainian
   `explanation_uk` (already safe HTML — used as-is) and falls back to the escaped English
   `explanation`, word-boundary-truncated to Telegram's 1024-char caption limit (the
-  text-only fallback uses the 4096 limit). A link is appended **only** when the media
-  couldn't be embedded. **Broadcast reuse:** `callBot`/`callBotForm`
+  text-only fallback uses the 4096 limit). A watch link is appended **only** when the media
+  couldn't be embedded. The footer ends with the original APOD page link and a **VECTOR APP**
+  link (`VECTOR_APP_HTML` in botApi — `t.me/vector_2049_bot`; the same link is the caption on
+  poster/wallpaper sends). Every post also carries an inline **"Відписатися"** button
+  (`UNSUB_MARKUP`, `callback_data:'apod_unsub'`) so a user can stop the daily photos without
+  leaving the bot — the webhook flips it back to subscribe. **Broadcast reuse:**
+  `callBot`/`callBotForm`
   surface the sent media's `file_id`; the cron passes a shared `MediaCache` so a big video
   is uploaded **once**, then re-sent to every other subscriber by `file_id`. The 20–50 MB
   upload path needs `maxDuration` headroom — **Vercel Pro** (300 s), not Hobby (60 s).

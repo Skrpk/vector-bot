@@ -20,6 +20,12 @@ import type { ApodPost } from '@/lib/db/schema';
 // sendVideo (URL fetch ≤20 MB, else download + multipart upload ≤50 MB).
 
 const UA_HEADER = '🔭 NASA · Астрономічне фото дня';
+// "Unsubscribe" button on every APOD post — lets the user stop the daily photos
+// without leaving the bot. `apod_unsub` is handled by the webhook (which flips it
+// back to a subscribe button).
+const UNSUB_MARKUP = {
+  inline_keyboard: [[{ text: 'Відписатися', callback_data: 'apod_unsub' }]],
+};
 // Telegram limits: media caption 1024 chars, plain message 4096. We put title +
 // description in ONE post (the media caption), truncating the description if the
 // whole thing would exceed the caption limit.
@@ -69,6 +75,7 @@ async function uploadVideo(
   form.set('caption', caption);
   form.set('parse_mode', 'HTML');
   form.set('supports_streaming', 'true');
+  form.set('reply_markup', JSON.stringify(UNSUB_MARKUP));
   form.set('video', new Blob([buf], { type: 'video/mp4' }), 'apod.mp4');
   return callBotForm(botToken, 'sendVideo', form);
 }
@@ -181,6 +188,7 @@ async function sendMedia(
     chat_id: chatId,
     caption,
     parse_mode: 'HTML' as const,
+    reply_markup: UNSUB_MARKUP,
   });
 
   // Animated GIF — APOD serves some under media_type 'image' with a .gif url.
@@ -233,6 +241,7 @@ async function sendMedia(
     text: buildCaption(post, false, TEXT_LIMIT),
     parse_mode: 'HTML',
     link_preview_options: { is_disabled: true },
+    reply_markup: UNSUB_MARKUP,
   });
   return { result: r, embedded: false, method: 'sendMessage' };
 }
@@ -257,6 +266,7 @@ export async function sendApodPost(
       [MEDIA_PARAM[cache.method]]: cache.fileId,
       caption,
       parse_mode: 'HTML',
+      reply_markup: UNSUB_MARKUP,
     });
     if (r.ok) return r;
     // file_id reuse failed — fall through to a full send.
