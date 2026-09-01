@@ -84,6 +84,14 @@ export async function callBotForm(
   };
 }
 
+// APOD subscribe/unsubscribe callback_data values. The `_post` variants are used
+// by the buttons attached to a daily post: re-subscribing there skips the
+// immediate "today's photo" send (the user already got it on that post).
+export const APOD_SUB = 'apod_sub';
+export const APOD_UNSUB = 'apod_unsub';
+export const APOD_SUB_POST = 'apod_sub_post';
+export const APOD_UNSUB_POST = 'apod_unsub_post';
+
 /** Clickable "VECTOR APP" link (Telegram HTML) that opens the bot. */
 export const VECTOR_APP_URL = 'https://t.me/vector_2049_bot';
 export const VECTOR_APP_LABEL = 'VECTOR APP';

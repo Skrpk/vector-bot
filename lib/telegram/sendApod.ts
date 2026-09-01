@@ -1,4 +1,5 @@
 import {
+  APOD_UNSUB_POST,
   callBot,
   callBotForm,
   escapeHtml,
@@ -24,7 +25,7 @@ const UA_HEADER = '🔭 NASA · Астрономічне фото дня';
 // without leaving the bot. `apod_unsub` is handled by the webhook (which flips it
 // back to a subscribe button).
 const UNSUB_MARKUP = {
-  inline_keyboard: [[{ text: 'Відписатися', callback_data: 'apod_unsub' }]],
+  inline_keyboard: [[{ text: 'Відписатися', callback_data: APOD_UNSUB_POST }]],
 };
 // Telegram limits: media caption 1024 chars, plain message 4096. We put title +
 // description in ONE post (the media caption), truncating the description if the

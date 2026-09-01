@@ -313,9 +313,12 @@ Subscribers get NASA's **Astronomy Picture of the Day** in their chat, once a da
   real `Europe/Kyiv` hour is 12 (so exactly one fires at noon Kyiv year-round, EET/EEST);
   `?force=1` bypasses the gate for manual testing. Then: fetch (+ Ukrainian translation) →
   `saveApodPost` → **`claimApodBroadcast(date)`** (atomic `UPDATE … WHERE broadcast_at IS
-NULL RETURNING` — a second run returns `skipped:'already broadcast'`) → send to every
-  `getApodSubscriberIds()` with a ~40ms gap; a "bot blocked / chat not found" error
-  **auto-unsubscribes** that user (`pruned`).
+NULL RETURNING` — a second run returns `skipped:'already broadcast'`) → for every
+  `getApodSubscriberIds()` (with a ~40ms gap) **re-check channel membership at send time**:
+  a member gets the post; a subscriber who has since **left the channel** gets a Ukrainian
+  "rejoin the channel" nudge instead (they stay subscribed, so posts resume when they
+  rejoin — counted as `reminded`). A "bot blocked / chat not found" send error
+  **auto-unsubscribes** that user (`pruned`). Response: `{sent, failed, pruned, reminded}`.
 - **Send** (`lib/telegram/sendApod.ts` + `botApi.ts`) — delivers the **real media inline**
   so the user never follows a link: image → `sendPhoto`; **.gif** → `sendAnimation`; direct
   **video** (.mp4…) → `sendVideo` by URL when ≤20 MB, else **download + multipart upload**
@@ -328,21 +331,29 @@ NULL RETURNING` — a second run returns `skipped:'already broadcast'`) → send
   couldn't be embedded. The footer ends with the original APOD page link and a **VECTOR APP**
   link (`VECTOR_APP_HTML` in botApi — `t.me/vector_2049_bot`; the same link is the caption on
   poster/wallpaper sends). Every post also carries an inline **"Відписатися"** button
-  (`UNSUB_MARKUP`, `callback_data:'apod_unsub'`) so a user can stop the daily photos without
-  leaving the bot — the webhook flips it back to subscribe. **Broadcast reuse:**
-  `callBot`/`callBotForm`
+  (`UNSUB_MARKUP`, `callback_data:'apod_unsub_post'`) so a user can stop the daily photos
+  without leaving the bot; the webhook flips it to a plain **"Підписатися"** (`apod_sub_post`).
+  These **`_post`** callbacks re-subscribe **silently** — no immediate re-send, since the user
+  already has that post — whereas `/start` & `/nasa`'s `apod_sub` sends today's photo on
+  subscribe (see the webhook section: `SUBSCRIBE`/`UNSUBSCRIBE`/`POST_CTX` sets + `toggleButton`).
+  **Broadcast reuse:** `callBot`/`callBotForm`
   surface the sent media's `file_id`; the cron passes a shared `MediaCache` so a big video
   is uploaded **once**, then re-sent to every other subscriber by `file_id`. The 20–50 MB
   upload path needs `maxDuration` headroom — **Vercel Pro** (300 s), not Hobby (60 s).
 - **Subscription is a bot conversation, NOT in the Mini App.** The webhook
-  (`app/api/telegram/webhook/route.ts`) handles three commands: **`/start`** (welcome + both
+  (`app/api/telegram/webhook/route.ts`) handles three commands: **`/start`** (a preview album
+  of `public/star-map.png` + `public/star-wallpaper.png` served from `TELEGRAM_WEBAPP_URL`,
+  via `sendMediaGroup` best-effort, then a welcome describing /maps and /nasa + both
   buttons), **`/maps`** (a **web_app** button opening the Mini App at `TELEGRAM_WEBAPP_URL`
   — Telegram can't auto-launch a Mini App from a command, so it's a one-tap button), and
   **`/nasa`** (a **callback** button that subscribes/unsubscribes, its label reflecting the
   current state). Tapping the NASA button toggles the flag, answers with a toast, edits the
   button in place (preserving other buttons like maps on a /start message via the message's
   existing `reply_markup`), and on subscribe **sends today's cached photo immediately** if
-  the broadcast already ran. Commands + descriptions are set once via `setMyCommands` (see
+  the broadcast already ran. **Subscribing is channel-gated** (same
+  `checkChannelMembership` as the star generator): a non-member gets a "join the channel
+  first" message with a link button + a retry subscribe button, and is **not** subscribed
+  until they join; a gate error fails open. Commands + descriptions are set once via `setMyCommands` (see
   README). The webhook verifies Telegram's `X-Telegram-Bot-Api-Secret-Token` against
   `TELEGRAM_WEBHOOK_SECRET`; the user id comes from the (verified) update, so no `initData`.
 

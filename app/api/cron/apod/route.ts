@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { fetchApod } from '@/lib/nasa/apod';
 import { translateApodToUk } from '@/lib/openai/translateApod';
 import { sendApodPost, type MediaCache } from '@/lib/telegram/sendApod';
+import { callBot } from '@/lib/telegram/botApi';
+import { checkChannelMembership } from '@/lib/telegram/channelMembership';
 import {
   claimApodBroadcast,
   getApodPostByDate,
@@ -26,6 +28,23 @@ const DEAD_CHAT =
   /bot was blocked|chat not found|user is deactivated|bot can't initiate/i;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Nudge a subscriber who has left the channel to rejoin (in place of the post). */
+async function sendChannelReminder(botToken: string, chatId: number, channelUrl: string) {
+  return callBot(botToken, 'sendMessage', {
+    chat_id: chatId,
+    text:
+      '👋 Ми помітили, що ви більше не підписані на наш канал.\n\n' +
+      'Щоб продовжувати отримувати щоденні фото NASA, підпишіться на канал знову 👇',
+    ...(channelUrl
+      ? {
+          reply_markup: {
+            inline_keyboard: [[{ text: '📢 Перейти на канал', url: channelUrl }]],
+          },
+        }
+      : {}),
+  });
+}
 
 export async function GET(req: Request) {
   // Auth: when CRON_SECRET is set, require it (Vercel Cron sends it as a Bearer
@@ -106,7 +125,20 @@ export async function GET(req: Request) {
   let sent = 0;
   let failed = 0;
   let pruned = 0;
+  let reminded = 0;
   for (const chatId of subscribers) {
+    // Re-check channel membership at send time: a subscriber may have left the
+    // channel since subscribing. Non-members get a "rejoin" nudge instead of the
+    // post (they stay subscribed, so posts resume once they rejoin). A gate error
+    // or no-channel config falls through to sending, matching the other gates.
+    const membership = await checkChannelMembership(botToken, chatId);
+    if ('subscribed' in membership && membership.subscribed === false) {
+      await sendChannelReminder(botToken, chatId, membership.channelUrl).catch(() => {});
+      reminded++;
+      if (SEND_GAP_MS) await sleep(SEND_GAP_MS);
+      continue;
+    }
+
     const result = await sendApodPost(botToken, chatId, post, cache);
     if (result.ok) {
       sent++;
@@ -127,5 +159,6 @@ export async function GET(req: Request) {
     sent,
     failed,
     pruned,
+    reminded,
   });
 }
