@@ -1,4 +1,12 @@
-import { callBot, callBotForm, escapeHtml, stripTags, type BotResult } from './botApi';
+import {
+  callBot,
+  callBotForm,
+  escapeHtml,
+  stripTags,
+  VECTOR_APP_HTML,
+  VECTOR_APP_LABEL,
+  type BotResult,
+} from './botApi';
 import type { ApodPost } from '@/lib/db/schema';
 
 // Compose + deliver one APOD as a SINGLE post: the actual image / GIF / video
@@ -12,8 +20,6 @@ import type { ApodPost } from '@/lib/db/schema';
 // sendVideo (URL fetch ≤20 MB, else download + multipart upload ≤50 MB).
 
 const UA_HEADER = '🔭 NASA · Астрономічне фото дня';
-// Bot/channel handle appended to every post.
-const BOT_HANDLE = '@vector_2049_bot';
 // Telegram limits: media caption 1024 chars, plain message 4096. We put title +
 // description in ONE post (the media caption), truncating the description if the
 // whole thing would exceed the caption limit.
@@ -99,9 +105,9 @@ function buildCaption(post: ApodPost, embedded: boolean, limit: number): string 
     plain: '🔗 Оригінал на APOD',
     html: `🔗 <a href="${escapeHtml(apodPageUrl(post.apodDate))}">Оригінал на APOD</a>`,
   });
-  // Links block, then a blank line, then the bot handle (Telegram auto-links it).
-  const footerPlain = `\n\n${links.map((l) => l.plain).join('\n')}\n\n${BOT_HANDLE}`;
-  const footerHtml = `\n\n${links.map((l) => l.html).join('\n')}\n\n${BOT_HANDLE}`;
+  // Links block, then a blank line, then the "VECTOR APP" link (opens the bot).
+  const footerPlain = `\n\n${links.map((l) => l.plain).join('\n')}\n\n${VECTOR_APP_LABEL}`;
+  const footerHtml = `\n\n${links.map((l) => l.html).join('\n')}\n\n${VECTOR_APP_HTML}`;
 
   const overhead = headPlain.length + 2 /* blank line */ + footerPlain.length;
   const budget = Math.max(0, limit - overhead);

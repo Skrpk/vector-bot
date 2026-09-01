@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { verifyInitData } from '@/lib/telegram/verifyInitData';
 import { checkChannelMembership } from '@/lib/telegram/channelMembership';
 import { recordDownload } from '@/lib/db/queries';
+import { VECTOR_APP_HTML } from '@/lib/telegram/botApi';
 import type { DownloadMeta } from '@/lib/db/downloadMeta';
 
 // Relay route: the render stays 100% client-side (hard constraint). The client
@@ -59,10 +60,6 @@ export async function POST(req: Request) {
     const f = form.get('filename');
     return typeof f === 'string' && f ? f : 'star-map.png';
   })();
-  const caption = (() => {
-    const c = form.get('caption');
-    return typeof c === 'string' && c ? c : undefined;
-  })();
   const meta = (() => {
     const m = form.get('meta');
     if (typeof m !== 'string' || !m) return null;
@@ -78,7 +75,9 @@ export async function POST(req: Request) {
   const tgForm = new FormData();
   tgForm.set('chat_id', String(verified.user.id));
   tgForm.set('document', file, filename);
-  if (caption) tgForm.set('caption', caption);
+  // Caption is a clickable "VECTOR APP" link back to the bot.
+  tgForm.set('caption', VECTOR_APP_HTML);
+  tgForm.set('parse_mode', 'HTML');
 
   let tgRes: Response;
   try {

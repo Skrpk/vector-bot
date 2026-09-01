@@ -84,6 +84,11 @@ export async function callBotForm(
   };
 }
 
+/** Clickable "VECTOR APP" link (Telegram HTML) that opens the bot. */
+export const VECTOR_APP_URL = 'https://t.me/vector_2049_bot';
+export const VECTOR_APP_LABEL = 'VECTOR APP';
+export const VECTOR_APP_HTML = `<a href="${VECTOR_APP_URL}">${VECTOR_APP_LABEL}</a>`;
+
 /** Escape a plain string for Telegram's HTML parse mode. */
 export function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
