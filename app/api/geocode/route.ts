@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { nominatimSearch, openMeteoSearch } from '@/lib/geo/providers';
-import type { GeocodeResponse } from '@/lib/geo/types';
+import type { GeocodeResponse, GeoResult } from '@/lib/geo/types';
 
 // Geocoding proxy: keeps provider calls server-side so we can set headers,
 // respect Nominatim's rate limit, cache, and avoid CORS. Free + keyless.
@@ -69,9 +69,16 @@ export async function GET(request: Request): Promise<NextResponse<GeocodeRespons
     if (primary.length > 0) {
       response = { results: primary, provider: 'open-meteo' };
     } else {
-      // Fall back to Nominatim only when Open-Meteo has nothing.
-      await throttleNominatim();
-      const fallback = await nominatimSearch(q, limit);
+      // Fall back to Nominatim only when Open-Meteo has nothing. Nominatim blocks
+      // datacenter IPs (403 on Vercel) and rate-limits hard, so its failure is
+      // EXPECTED in prod — swallow it quietly and just return no results.
+      let fallback: GeoResult[] = [];
+      try {
+        await throttleNominatim();
+        fallback = await nominatimSearch(q, limit);
+      } catch (e) {
+        console.warn('[geocode] Nominatim fallback unavailable:', String(e));
+      }
       response =
         fallback.length > 0
           ? {
