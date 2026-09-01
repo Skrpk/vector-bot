@@ -21,6 +21,10 @@ Later milestones add the paid gate, attribution logging, and server-side HD expo
 - **Next.js 16 (App Router) + React 19 + TypeScript**. Single Next.js app.
 - ESLint (`eslint-config-next`) + Prettier. Turbopack dev/build.
 - Deploy target: **Vercel** (serverless/edge).
+- **Postgres + Drizzle ORM** (`drizzle-orm` Apache-2.0 / `postgres` Unlicense /
+  `drizzle-kit` MIT) — users + download metadata. Neon on Vercel, Docker Postgres
+  locally. See "Database". The render path is still client-only; the DB is just
+  logging + the future APOD subscription.
 
 ## Hard constraints (do not violate)
 
@@ -242,6 +246,98 @@ rotates the sky). City search is the only location input (manual coords removed)
   Prague/Kyiv/NYC at the same wall clock give three different instants + skies.
   `// TODO`: reverse geocoding / "use my location" (GPS) in `CitySearch`.
 
+## Database (users + download metadata)
+
+**Postgres + Drizzle**. Stores who used the app and what they generated — **never the
+image**. Neon on Vercel (from the Vercel Postgres integration → injects
+`DATABASE_URL`); local **Docker Postgres** via `docker-compose.yml`. Same wire protocol
+both places, so `DATABASE_URL` is the only difference.
+
+`lib/db/`:
+
+- `schema.ts` — three tables. **`users`** (`id` = Telegram user id PK, username/first_name/
+  language_code, **`apod_subscribed`** bool + `apod_subscribed_at`, timestamps).
+  **`downloads`** (uuid PK, `user_id` FK, title, event_date, place_name/lat/lng/timezone,
+  `output_kind`, `size_id`, `bg_color_id`, `sky_options` jsonb, created_at). **`apod_posts`**
+  (`apod_date` PK, title/explanation/**explanation_uk**/media_type/url/hdurl/thumbnail_url/copyright,
+  fetched_at, broadcast_at — the daily-APOD cache; see "NASA APOD daily broadcast").
+- `index.ts` — **lazy** `getDb()` (postgres.js, `max:1`, cached on `globalThis`). Lazy so
+  importing it never connects or throws at build time / on DB-less routes; only connects
+  on first query. Throws if `DATABASE_URL` is unset.
+- `queries.ts` — `upsertUser`, `insertDownload`, **`recordDownload(user, meta)`** (upsert +
+  insert in one, coercing client meta defensively — the FK `userId` comes from validated
+  initData, not the meta); APOD: `setApodSubscription`, `isApodSubscribed`,
+  `getApodSubscriberIds`, `saveApodPost`, `getFreshApodPost`, `getApodPostByDate`,
+  `claimApodBroadcast`.
+- `downloadMeta.ts` — the `DownloadMeta` type (type-only; shared by the browser client and
+  the server so the client never imports the DB).
+
+**Logging path:** on a **successful** send, `StarMapApp` includes a `meta` JSON (title /
+date / place / output kind / size / bg / sky options) in the send form; `/api/send-to-chat`
+parses it and calls `recordDownload` — **best-effort, in a try/catch**, and skipped when
+`DATABASE_URL` is unset, so a DB hiccup never fails a send the user already got. Only
+Telegram sends are logged (the browser download is a dev-only fallback, unauthenticated).
+
+**Migrations:** drizzle-kit. `npm run db:generate` (writes SQL to `drizzle/`, committed) →
+`npm run db:migrate` (applies; needs `DATABASE_URL`). Also `db:push` (dev) / `db:studio`.
+
+**Local Docker:** `docker compose up -d db` starts Postgres (`postgres://vector:vector@
+localhost:5432/vector`); `docker compose up` also builds + runs the app (`Dockerfile`,
+Next `output:'standalone'`). The app publishes `${APP_PORT:-3000}`, so set `APP_PORT` when a
+local `npm run dev` already holds 3000. Telegram needs a public HTTPS URL, so to test
+the Mini App run a tunnel (cloudflared/ngrok) to :3000 and point a **test bot**'s Mini App
+URL at it (test bot token in `.env.local`). API routes/DB can be tested with curl without
+Telegram.
+
+## NASA APOD daily broadcast
+
+Subscribers get NASA's **Astronomy Picture of the Day** in their chat, once a day.
+
+- **`lib/nasa/apod.ts`** — `fetchApod(date?)` hits `api.nasa.gov/planetary/apod`
+  (`NASA_API_KEY` or `DEMO_KEY`, `thumbs=true`), normalizes to `ApodData` (image has
+  `hdurl`; video has `url` + maybe `thumbnail_url`; `copyright` optional). Returns null on
+  any failure.
+- **`lib/openai/translateApod.ts`** — `translateApodToUk(title, explanation)`: one OpenAI
+  Chat Completions call (`OPENAI_API_KEY`, `OPENAI_MODEL` default `gpt-4o-mini`, plain
+  `fetch`, no SDK) rewriting the English description into an engaging **Ukrainian** blurb
+  (4–5 sentences, main facts only, light `<b>/<i>` formatting, ≤800 chars). Output is run
+  through `sanitizeTelegramHtml` (escape-all, re-allow only `<b><i><u><s>`). Returns null on
+  any failure → the sender falls back to English. Called **once/day** in the cron.
+- **Cache**: `apod_posts` table (see Database), one row per APOD date, storing both
+  `explanation` (English) and `explanation_uk` (the OpenAI rewrite). `saveApodPost` upserts;
+  `getFreshApodPost(24h)` returns the latest still-fresh row.
+- **`/api/cron/apod`** (GET, Node, `maxDuration:300`) — the daily job. Auth: if
+  `CRON_SECRET` is set, requires `Authorization: Bearer <CRON_SECRET>` (Vercel Cron sends
+  this); unset → open (local). Steps: fetch → `saveApodPost` → **`claimApodBroadcast(date)`**
+  (atomic `UPDATE … WHERE broadcast_at IS NULL RETURNING` — a second run returns
+  `skipped:'already broadcast'`) → send to every `getApodSubscriberIds()` with a ~40ms gap;
+  a "bot blocked / chat not found" error **auto-unsubscribes** that user (`pruned`).
+  Scheduled `0 12 * * *` **UTC** in `vercel.json` (adjust for local noon).
+- **Send** (`lib/telegram/sendApod.ts` + `botApi.ts`) — delivers the **real media inline**
+  so the user never follows a link: image → `sendPhoto`; **.gif** → `sendAnimation`; direct
+  **video** (.mp4…) → `sendVideo` by URL when ≤20 MB, else **download + multipart upload**
+  when ≤50 MB (buffered in memory, no disk, nothing to clean up); >50 MB or **YouTube/Vimeo**
+  (not a downloadable file) → thumbnail photo + a watch link. **One post**: the title +
+  description ride as the media's **caption** (`buildCaption`), which prefers the Ukrainian
+  `explanation_uk` (already safe HTML — used as-is) and falls back to the escaped English
+  `explanation`, word-boundary-truncated to Telegram's 1024-char caption limit (the
+  text-only fallback uses the 4096 limit). A link is appended **only** when the media
+  couldn't be embedded. **Broadcast reuse:** `callBot`/`callBotForm`
+  surface the sent media's `file_id`; the cron passes a shared `MediaCache` so a big video
+  is uploaded **once**, then re-sent to every other subscriber by `file_id`. The 20–50 MB
+  upload path needs `maxDuration` headroom — **Vercel Pro** (300 s), not Hobby (60 s).
+- **Subscription is a bot conversation, NOT in the Mini App.** The webhook
+  (`app/api/telegram/webhook/route.ts`) handles three commands: **`/start`** (welcome + both
+  buttons), **`/maps`** (a **web_app** button opening the Mini App at `TELEGRAM_WEBAPP_URL`
+  — Telegram can't auto-launch a Mini App from a command, so it's a one-tap button), and
+  **`/nasa`** (a **callback** button that subscribes/unsubscribes, its label reflecting the
+  current state). Tapping the NASA button toggles the flag, answers with a toast, edits the
+  button in place (preserving other buttons like maps on a /start message via the message's
+  existing `reply_markup`), and on subscribe **sends today's cached photo immediately** if
+  the broadcast already ran. Commands + descriptions are set once via `setMyCommands` (see
+  README). The webhook verifies Telegram's `X-Telegram-Bot-Api-Secret-Token` against
+  `TELEGRAM_WEBHOOK_SECRET`; the user id comes from the (verified) update, so no `initData`.
+
 ## Milestone boundaries
 
 **Done (M1):** scaffold, Telegram shell + theme, client star-map render, poster
@@ -265,13 +361,17 @@ edge-perfect accuracy; WebP art to cut asset size.
 **send-to-chat** relay (`/api/send-to-chat`, Bot API `sendDocument`); **channel-membership
 gate** (`getChatMember` via `lib/telegram/channelMembership.ts`, `TELEGRAM_CHANNEL_ID` /
 `TELEGRAM_CHANNEL_URL`) — see the lib/telegram section above. Needs `TELEGRAM_BOT_TOKEN`
-set; the bot must be an admin of the gated channel.
+set; the bot must be an admin of the gated channel. **Database** (Postgres + Drizzle):
+users + per-download metadata, logged on each successful send. **NASA APOD daily
+broadcast** (subscribe toggle → daily Vercel Cron caches + sends the photo; late joiners
+get today's cached post immediately) — see "NASA APOD daily broadcast".
 
 **NOT built yet — Milestone 2 (marked `// TODO(milestone-2)` in code):**
-`start_param` attribution logging, **persistent geocode cache** (DB, no
-PlanetScale yet), watermark on/off toggle, HD export resolution, server-side
-Satori/HD render, PDF, premium styles, payments. Also deferred: reverse geocoding /
-GPS "use my location".
+`start_param` attribution logging, **persistent geocode cache** (reuse the DB),
+watermark on/off toggle, HD export resolution, server-side Satori/HD render, PDF,
+premium styles, payments. Also deferred: reverse geocoding / GPS "use my location".
+APOD polish: batch/queue the broadcast if the subscriber list grows large (currently a
+single sequential loop inside one function invocation).
 
 ## Verify locally
 
@@ -281,13 +381,21 @@ npm run build        # must pass — Vercel readiness
 npm run lint
 npx tsc --noEmit
 npm run format       # prettier --write
+
+# Database (local Postgres in Docker)
+docker compose up -d db   # start Postgres on :5432
+npm run db:migrate        # apply schema (needs DATABASE_URL in env / .env.local)
+npm run db:studio         # browse data (drizzle-kit studio)
+docker compose up         # build + run the app container too (APP_PORT=3001 if 3000 is taken)
 ```
 
 Real Telegram theming can't be verified outside Telegram; the plain-browser
-fallback (default dark theme) is the local dev path.
+fallback (default dark theme) is the local dev path. Testing the Mini App end-to-end
+(send-to-chat, gate, logging) needs a **tunnel** (cloudflared/ngrok) to :3000 and a
+**test bot** whose Mini App URL points at it — see README / the Database section.
 
 ## Stop-and-ask before
 
 Pulling in any large/non-permissive dep; changing core architecture (server-side
-render, adding a DB, swapping framework); or reaching for `astronomy-engine`
-because d3-celestial quality looks insufficient.
+render, swapping framework, changing the DB engine/ORM); or reaching for
+`astronomy-engine` because d3-celestial quality looks insufficient.

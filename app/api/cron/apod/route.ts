@@ -1,0 +1,112 @@
+import { NextResponse } from 'next/server';
+import { fetchApod } from '@/lib/nasa/apod';
+import { translateApodToUk } from '@/lib/openai/translateApod';
+import { sendApodPost, type MediaCache } from '@/lib/telegram/sendApod';
+import {
+  claimApodBroadcast,
+  getApodPostByDate,
+  getApodSubscriberIds,
+  saveApodPost,
+  setApodSubscription,
+} from '@/lib/db/queries';
+
+// Daily NASA APOD broadcast. Triggered by Vercel Cron (see vercel.json). Fetches
+// today's APOD, caches it (so late subscribers get it immediately), then sends
+// it to every subscriber. The render path stays client-side; this is a
+// server-only scheduled job.
+
+export const runtime = 'nodejs';
+// Give the broadcast loop room (Vercel caps this per plan).
+export const maxDuration = 300;
+
+// Telegram allows ~30 messages/sec across users; a small gap keeps us safe.
+const SEND_GAP_MS = 40;
+// Errors that mean the user can't be reached again — prune their subscription.
+const DEAD_CHAT =
+  /bot was blocked|chat not found|user is deactivated|bot can't initiate/i;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+export async function GET(req: Request) {
+  // Auth: when CRON_SECRET is set, require it (Vercel Cron sends it as a Bearer
+  // token). Unset -> allow, so the job can be triggered locally for testing.
+  const secret = process.env.CRON_SECRET;
+  if (secret) {
+    const auth = req.headers.get('authorization');
+    if (auth !== `Bearer ${secret}`) {
+      return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
+    }
+  }
+
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  if (!botToken) {
+    return NextResponse.json({ ok: false, error: 'no bot token' }, { status: 500 });
+  }
+  if (!process.env.DATABASE_URL) {
+    return NextResponse.json({ ok: false, error: 'no database' }, { status: 500 });
+  }
+
+  // 1. Fetch + cache today's APOD.
+  const apod = await fetchApod();
+  if (!apod) {
+    return NextResponse.json({ ok: false, error: 'nasa fetch failed' }, { status: 502 });
+  }
+  // Rewrite the description into Ukrainian (OpenAI). Best-effort — null on
+  // failure, and the sender falls back to the English original.
+  const explanationUk = await translateApodToUk(apod.title, apod.explanation);
+  await saveApodPost({
+    apodDate: apod.date,
+    title: apod.title,
+    explanation: apod.explanation,
+    explanationUk,
+    mediaType: apod.mediaType,
+    url: apod.url,
+    hdurl: apod.hdurl,
+    thumbnailUrl: apod.thumbnailUrl,
+    copyright: apod.copyright,
+  });
+
+  // 2. Claim the broadcast — bail if a prior run already sent this date.
+  const claimed = await claimApodBroadcast(apod.date);
+  if (!claimed) {
+    return NextResponse.json({ ok: true, date: apod.date, skipped: 'already broadcast' });
+  }
+
+  const post = await getApodPostByDate(apod.date);
+  if (!post) {
+    return NextResponse.json(
+      { ok: false, error: 'post not found after save' },
+      { status: 500 }
+    );
+  }
+
+  // 3. Broadcast to every subscriber. A shared media cache means a big video is
+  // uploaded once and re-sent to everyone else by file_id (no per-user re-upload).
+  const subscribers = await getApodSubscriberIds();
+  const cache: MediaCache = {};
+  let sent = 0;
+  let failed = 0;
+  let pruned = 0;
+  for (const chatId of subscribers) {
+    const result = await sendApodPost(botToken, chatId, post, cache);
+    if (result.ok) {
+      sent++;
+    } else {
+      failed++;
+      if (result.description && DEAD_CHAT.test(result.description)) {
+        await setApodSubscription(chatId, false).catch(() => {});
+        pruned++;
+      }
+    }
+    if (SEND_GAP_MS) await sleep(SEND_GAP_MS);
+  }
+
+  return NextResponse.json({
+    ok: true,
+    date: apod.date,
+    subscribers: subscribers.length,
+    sent,
+    failed,
+    pruned,
+  });
+}

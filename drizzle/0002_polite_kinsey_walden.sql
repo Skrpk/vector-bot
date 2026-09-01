@@ -1,0 +1,1 @@
+ALTER TABLE "apod_posts" ADD COLUMN "explanation_uk" text;

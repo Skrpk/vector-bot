@@ -1,0 +1,11 @@
+node_modules
+.next
+.git
+.env*
+!.env.example
+public/celestial
+npm-debug.log*
+Dockerfile
+docker-compose.yml
+.dockerignore
+README.md

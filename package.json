@@ -14,12 +14,18 @@
     "start": "next start",
     "lint": "eslint",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
     "@twa-dev/sdk": "^8.0.2",
     "d3-celestial": "^0.7.35",
+    "drizzle-orm": "^0.45.2",
     "next": "16.3.3",
+    "postgres": "^3.4.9",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
@@ -27,6 +33,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "drizzle-kit": "^0.31.10",
     "eslint": "^9",
     "eslint-config-next": "16.3.3",
     "prettier": "^3.9.6",

@@ -1,0 +1,47 @@
+# Local dev stack: Postgres + the Next.js app (test bot).
+#
+#   docker compose up db            # just the database (run the app with `npm run dev`)
+#   docker compose up               # database + app
+#   APP_PORT=3001 docker compose up # …when a local `npm run dev` already holds 3000
+#
+# The app needs a public HTTPS URL for Telegram to load the Mini App — run a
+# tunnel (cloudflared/ngrok) to http://localhost:3000 and point your TEST bot's
+# Mini App URL at it. See README / CLAUDE.md.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: vector
+      POSTGRES_PASSWORD: vector
+      POSTGRES_DB: vector
+    ports:
+      - '5432:5432'
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U vector -d vector']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      # Override APP_PORT to run the container alongside a local `npm run dev`.
+      - '${APP_PORT:-3000}:3000'
+    environment:
+      # Inside the compose network the DB host is the service name `db`.
+      DATABASE_URL: postgres://vector:vector@db:5432/vector
+      NODE_ENV: production
+    env_file:
+      # Secrets (TELEGRAM_BOT_TOKEN, channel vars, …). DATABASE_URL above wins.
+      - .env.local
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db-data:

@@ -23,6 +23,7 @@ import { renderStarMap } from '@/lib/sky/renderStarMap';
 import type { SkyOptions, Theme } from '@/lib/sky/types';
 import { initTelegram, openTelegramLink } from '@/lib/telegram/bootstrap';
 import { sendPngToChat } from '@/lib/telegram/sendPngToChat';
+import type { DownloadMeta } from '@/lib/db/downloadMeta';
 import { DEFAULT_THEME } from '@/lib/telegram/theme';
 
 const SKY_SIZE = 1000;
@@ -74,10 +75,9 @@ export default function StarMapApp() {
   const [subscribeUrl, setSubscribeUrl] = useState<string | null>(null);
   // Telegram context: inside the Mini App we send the image into the chat
   // (browser download is blocked in the webview); elsewhere we download.
-  // `isTelegram` is state (drives the button label); initData is only read at
-  // send time, so a ref avoids re-renders.
+  // `initData` (the raw signed string) is sent to the server, which validates it.
   const [isTelegram, setIsTelegram] = useState(false);
-  const initDataRef = useRef('');
+  const [initData, setInitData] = useState('');
   const fileStampRef = useRef<string | null>(null);
   // Last inputs, so toggling a sky option can re-render without re-entering the form.
   const lastPayloadRef = useRef<GeneratePayload | null>(null);
@@ -106,7 +106,7 @@ export default function StarMapApp() {
         if (!active) return;
         setTheme(ctx.theme);
         setIsTelegram(ctx.isTelegram);
-        initDataRef.current = ctx.initData;
+        setInitData(ctx.initData);
         // TODO(milestone-2): send ctx.startParam to attribution logging.
         if (ctx.startParam) {
           console.info('[telegram] start_param:', ctx.startParam);
@@ -155,8 +155,8 @@ export default function StarMapApp() {
     opts: SkyOptions,
     bgId: string,
     artSet: string
-  ) => {
-    if (!skyRef.current || !posterRef.current || !wallpaperRef.current) return;
+  ): Promise<boolean> => {
+    if (!skyRef.current || !posterRef.current || !wallpaperRef.current) return false;
     lastPayloadRef.current = payload;
     setLoading(true);
     setCanDownload(false);
@@ -230,6 +230,7 @@ export default function StarMapApp() {
       fileStampRef.current = payload.fileStamp;
       setCanDownload(true);
       setStatus('Готово — перемикайте вкладки та завантажуйте.');
+      return true;
     } catch (err) {
       console.error(err);
       setStatus(
@@ -237,6 +238,7 @@ export default function StarMapApp() {
           ? `Не вдалося згенерувати: ${err.message}`
           : 'Помилка генерації.'
       );
+      return false;
     } finally {
       setLoading(false);
     }
@@ -280,7 +282,7 @@ export default function StarMapApp() {
     // Inside Telegram, a browser download is blocked in the webview — send the
     // PNG into the chat as a file via the bot instead.
     if (isTelegram) {
-      if (!initDataRef.current) {
+      if (!initData) {
         setStatus('Не вдалося надіслати — відкрийте застосунок через бота.');
         return;
       }
@@ -290,8 +292,26 @@ export default function StarMapApp() {
       setStatus(
         'Надсилаємо у ваш чат. Це може зайняти деякий час, зачекайте будь ласка...'
       );
+      // Metadata logged server-side on success (never the image itself).
+      const p = lastPayloadRef.current;
+      const meta: DownloadMeta = {
+        title: p?.title || undefined,
+        eventDate: p?.fileStamp || undefined,
+        placeName: p?.label || undefined,
+        lat: p?.lat,
+        lng: p?.lng,
+        timezone: p?.timezone ?? undefined,
+        outputKind: activeTab,
+        sizeId: activeTab === 'wallpaper' ? wallpaperSizeId : posterSizeId,
+        bgColorId,
+        skyOptions: {
+          ...skyOptions,
+          artSet: artSetId,
+          ...(activeTab === 'poster' ? { paper: posterPaperId } : {}),
+        },
+      };
       try {
-        const result = await sendPngToChat(canvas, name, initDataRef.current, WATERMARK);
+        const result = await sendPngToChat(canvas, name, initData, WATERMARK, meta);
         if (result.ok) {
           setSent(true);
           setStatus('');
@@ -363,10 +383,18 @@ export default function StarMapApp() {
       <InputForm
         disabled={loading}
         onGenerate={(payload) => {
-          void handleGenerate(payload, skyOptions, bgColorId, artSetId);
           // On an explicit "Render", bring the preview into view so the user
           // immediately sees it appear (only here, not on settings re-renders).
           scrollOutputIntoView();
+          void handleGenerate(payload, skyOptions, bgColorId, artSetId).then((ok) => {
+            // Once painting finishes, reveal the Sky options panel and re-scroll
+            // so the panel + canvas settle into view after the layout grows.
+            if (!ok) return;
+            setSettingsOpen(true);
+            requestAnimationFrame(() =>
+              requestAnimationFrame(() => scrollOutputIntoView())
+            );
+          });
         }}
       />
 

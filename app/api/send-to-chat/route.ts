@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { verifyInitData } from '@/lib/telegram/verifyInitData';
 import { checkChannelMembership } from '@/lib/telegram/channelMembership';
+import { recordDownload } from '@/lib/db/queries';
+import type { DownloadMeta } from '@/lib/db/downloadMeta';
 
 // Relay route: the render stays 100% client-side (hard constraint). The client
 // POSTs the finished PNG here; we validate the Telegram initData signature,
@@ -61,6 +63,15 @@ export async function POST(req: Request) {
     const c = form.get('caption');
     return typeof c === 'string' && c ? c : undefined;
   })();
+  const meta = (() => {
+    const m = form.get('meta');
+    if (typeof m !== 'string' || !m) return null;
+    try {
+      return JSON.parse(m) as DownloadMeta;
+    } catch {
+      return null;
+    }
+  })();
 
   // Re-wrap into a fresh multipart body for the Bot API. `document` preserves the
   // PNG byte-for-byte (unlike `sendPhoto`, which recompresses).
@@ -96,6 +107,16 @@ export async function POST(req: Request) {
       },
       { status: 502 }
     );
+  }
+
+  // Log the download (metadata only). Best-effort — a DB hiccup must not fail a
+  // send the user already received. Skipped when the DB isn't configured.
+  if (process.env.DATABASE_URL && meta) {
+    try {
+      await recordDownload(verified.user, meta);
+    } catch (err) {
+      console.error('[send-to-chat] failed to log download:', err);
+    }
   }
 
   return NextResponse.json({ ok: true });

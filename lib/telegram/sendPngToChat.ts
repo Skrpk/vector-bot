@@ -1,4 +1,5 @@
 import { canvasToPngBlob } from '@/lib/sky/exportPng';
+import type { DownloadMeta } from '@/lib/db/downloadMeta';
 
 export type SendResult =
   | { ok: true }
@@ -16,7 +17,8 @@ export async function sendPngToChat(
   canvas: HTMLCanvasElement,
   filename: string,
   initData: string,
-  caption?: string
+  caption?: string,
+  meta?: DownloadMeta
 ): Promise<SendResult> {
   let blob: Blob;
   try {
@@ -30,6 +32,7 @@ export async function sendPngToChat(
   form.set('file', blob, filename);
   form.set('filename', filename);
   if (caption) form.set('caption', caption);
+  if (meta) form.set('meta', JSON.stringify(meta));
 
   let res: Response;
   try {
