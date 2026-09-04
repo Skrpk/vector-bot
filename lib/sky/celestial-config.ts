@@ -9,6 +9,7 @@ import type { SkyBackground } from './types';
 export const BG_COLORS = {
   space: '#0b1020',
   black: '#000000',
+  pink: '#bd2a83',
 } as const;
 
 export type BgColorId = keyof typeof BG_COLORS;

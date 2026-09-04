@@ -28,6 +28,7 @@ const ITEMS: { key: keyof SkyOptions; label: string }[] = [
 const BG_ITEMS: { id: keyof typeof BG_COLORS; label: string }[] = [
   { id: 'space', label: 'Космос' },
   { id: 'black', label: 'Чорний' },
+  { id: 'pink', label: 'Рожевий' },
 ];
 
 /**
