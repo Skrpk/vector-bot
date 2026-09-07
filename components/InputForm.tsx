@@ -106,15 +106,10 @@ export default function InputForm({ disabled, onGenerate }: InputFormProps) {
   return (
     <form className="form" onSubmit={handleSubmit}>
       <div className="form__field">
-        <label htmlFor="title">Заголовок</label>
-        <input
-          id="title"
-          type="text"
-          placeholder="напр. ВЕСІЛЛЯ💍"
-          value={title}
-          maxLength={40}
-          onChange={(e) => setTitle(e.target.value)}
-        />
+        <label htmlFor="citysearch-input">
+          Місце (введіть місто й оберіть зі списку)
+        </label>
+        <CitySearch onSelect={handleCitySelect} disabled={disabled} />
       </div>
 
       <div className="form__field">
@@ -128,10 +123,15 @@ export default function InputForm({ disabled, onGenerate }: InputFormProps) {
       </div>
 
       <div className="form__field">
-        <label htmlFor="citysearch-input">
-          Місце (введіть місто й оберіть зі списку)
-        </label>
-        <CitySearch onSelect={handleCitySelect} disabled={disabled} />
+        <label htmlFor="title">Заголовок</label>
+        <input
+          id="title"
+          type="text"
+          placeholder="напр. ВЕСІЛЛЯ💍"
+          value={title}
+          maxLength={40}
+          onChange={(e) => setTitle(e.target.value)}
+        />
       </div>
 
       {error && <p className="form__error">{error}</p>}
