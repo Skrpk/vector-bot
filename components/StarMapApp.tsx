@@ -107,6 +107,14 @@ export default function StarMapApp() {
         setTheme(ctx.theme);
         setIsTelegram(ctx.isTelegram);
         setInitData(ctx.initData);
+        // Tell the log channel the generator was opened (best-effort, fire-and-forget).
+        if (ctx.isTelegram && ctx.initData) {
+          void fetch('/api/log/open', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ initData: ctx.initData }),
+          }).catch(() => {});
+        }
         // TODO(milestone-2): send ctx.startParam to attribution logging.
         if (ctx.startParam) {
           console.info('[telegram] start_param:', ctx.startParam);

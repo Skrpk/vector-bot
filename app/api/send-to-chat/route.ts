@@ -3,6 +3,7 @@ import { verifyInitData } from '@/lib/telegram/verifyInitData';
 import { checkChannelMembership } from '@/lib/telegram/channelMembership';
 import { recordDownload } from '@/lib/db/queries';
 import { VECTOR_APP_HTML } from '@/lib/telegram/botApi';
+import { logUserEvent } from '@/lib/telegram/logEvent';
 import type { DownloadMeta } from '@/lib/db/downloadMeta';
 
 // Relay route: the render stays 100% client-side (hard constraint). The client
@@ -117,6 +118,10 @@ export async function POST(req: Request) {
       console.error('[send-to-chat] failed to log download:', err);
     }
   }
+
+  // Audit line in the log channel (best-effort, after the user already has it).
+  const kind = meta?.outputKind === 'poster' ? 'poster' : 'wallpaper';
+  await logUserEvent(botToken, verified.user, `received ${kind} (in chat)`);
 
   return NextResponse.json({ ok: true });
 }

@@ -7,6 +7,7 @@ import {
   callBot,
 } from '@/lib/telegram/botApi';
 import { checkChannelMembership } from '@/lib/telegram/channelMembership';
+import { logUserEvent } from '@/lib/telegram/logEvent';
 import { sendApodPost } from '@/lib/telegram/sendApod';
 import {
   getFreshApodPost,
@@ -151,6 +152,7 @@ export async function POST(req: Request) {
             inline_keyboard: [[mapsButton(webAppUrl)], [nasaButton(subscribed)]],
           },
         });
+        await logUserEvent(botToken, msg.from, 'started bot');
       }
       return NextResponse.json({ ok: true });
     }
@@ -231,6 +233,13 @@ export async function POST(req: Request) {
         const post = await getFreshApodPost();
         if (post) await sendApodPost(botToken, cq.from.id, post).catch(() => {});
       }
+      await logUserEvent(
+        botToken,
+        cq.from,
+        subscribe
+          ? 'subscribed to NASA daily photo'
+          : 'unsubscribed from NASA daily photo'
+      );
       return NextResponse.json({ ok: true });
     }
   } catch (err) {

@@ -151,6 +151,15 @@ width, height })` — full-bleed phone wallpaper: same sky as the poster + **whi
   = bot not admin / wrong id) is **fail-open**: the route logs it and still sends.
 - `bootstrap.ts` `openTelegramLink(url)` — opens the channel via the SDK inside Telegram
   (else `window.open`).
+- `logEvent.ts` — **server** `logUserEvent(botToken, user, action)`: mirrors user actions
+  into a private audit channel (`LOG_CHANNEL_ID`; bot must be an admin able to post) as
+  `User <id> <@name|full name> <action>`. Entirely best-effort (never throws) and a no-op
+  when `LOG_CHANNEL_ID` is unset. Events: **started bot** (`/start`), **opened
+  poster/wallpaper generator** (`/api/log/open`, pinged once by `StarMapApp` when the Mini
+  App boots — the only server hit on open, since the render is client-side), **received
+  poster/wallpaper (in chat)** (`/api/send-to-chat` after a successful send),
+  **subscribed / unsubscribed from NASA daily photo** (webhook callbacks). Logs are
+  `await`ed _after_ the user-facing reply so serverless can't cut them off.
 
 **Send-to-chat** (browser download is blocked inside Telegram's webview): in the Mini
 App the download button becomes **"Надіслати {постер/шпалери} у чат"** (all UI is
