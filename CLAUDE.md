@@ -265,7 +265,10 @@ both places, so `DATABASE_URL` is the only difference.
 `lib/db/`:
 
 - `schema.ts` — three tables. **`users`** (`id` = Telegram user id PK, username/first_name/
-  language_code, **`apod_subscribed`** bool + `apod_subscribed_at`, **`blocked`** bool
+  language_code, **`apod_subscribed`** bool (**defaults to TRUE** — every new user is
+  opted into the APOD broadcast on first interaction, since `upsertUser` doesn't set the
+  column and `onConflictDoUpdate` never touches it, so deliberate unsubscribes stick) +
+  `apod_subscribed_at`, **`blocked`** bool
   (set when a broadcast send fails; cleared on any interaction), timestamps).
   **`downloads`** (uuid PK, `user_id` FK, title, event_date, place_name/lat/lng/timezone,
   `output_kind`, `size_id`, `bg_color_id`, `sky_options` jsonb, created_at). **`apod_posts`**

@@ -1,0 +1,1 @@
+ALTER TABLE "users" ALTER COLUMN "apod_subscribed" SET DEFAULT true;
