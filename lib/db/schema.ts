@@ -17,12 +17,9 @@ export const users = pgTable('users', {
   username: text('username'),
   firstName: text('first_name'),
   languageCode: text('language_code'),
-  // NASA "Astronomy Picture of the Day" subscription. The daily cron queries
-  // `where apodSubscribed = true`. Defaults to TRUE: every new user is opted in
-  // on first interaction (upsertUser doesn't set the column, so the DB default
-  // applies). onConflictDoUpdate never touches it, so anyone who deliberately
-  // unsubscribed stays unsubscribed.
-  apodSubscribed: boolean('apod_subscribed').notNull().default(true),
+  // NASA "Astronomy Picture of the Day" subscription (future feature). The daily
+  // cron will query `where apodSubscribed = true`.
+  apodSubscribed: boolean('apod_subscribed').notNull().default(false),
   apodSubscribedAt: timestamp('apod_subscribed_at', { withTimezone: true }),
   // Set true when a broadcast send fails because the user blocked the bot / is
   // deactivated — the broadcast then skips them. Cleared on any interaction
