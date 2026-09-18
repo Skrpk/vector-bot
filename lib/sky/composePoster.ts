@@ -67,6 +67,8 @@ const LAYOUT = {
   /** Vertical centre of the sky circle as a fraction of poster height. */
   skyCenterYRatio: 0.42,
   ringWidth: 3,
+  /** Border band along the poster edge (see `frameColor`). */
+  frameWidth: 26,
   titlePx: 62,
   subtitlePx: 30,
   watermarkPx: 26,
@@ -92,6 +94,7 @@ export function composePoster(canvas: HTMLCanvasElement, opts: PosterOptions): v
     background,
     textColor,
     mutedColor,
+    frameColor,
     width,
     height,
   } = opts;
@@ -104,9 +107,17 @@ export function composePoster(canvas: HTMLCanvasElement, opts: PosterOptions): v
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('2D context unavailable');
 
-  // Paper (colour outside the sky circle). The disc keeps its own sky colour.
+  // Frame + paper. The frame is a band along the poster edge in the SKY's own
+  // background colour, so the border echoes the disc; the paper (the colour
+  // outside the circle) fills the area inside it. Painted as two rects — frame
+  // colour edge-to-edge, then the paper inset — so it works on any paper.
+  const frame = frameColor ? LAYOUT.frameWidth * s : 0;
+  if (frameColor) {
+    ctx.fillStyle = frameColor;
+    ctx.fillRect(0, 0, width, height);
+  }
   ctx.fillStyle = background;
-  ctx.fillRect(0, 0, width, height);
+  ctx.fillRect(frame, frame, width - frame * 2, height - frame * 2);
 
   // Sky circle geometry
   const diameter = width * LAYOUT.skyDiameterRatio;
@@ -193,6 +204,6 @@ export function composePoster(canvas: HTMLCanvasElement, opts: PosterOptions): v
   ctx.font = `500 ${LAYOUT.watermarkPx * s}px ${LAYOUT.font}`;
   ctx.fillStyle = mutedColor;
   ctx.globalAlpha = 0.85;
-  ctx.fillText(watermark, width - margin, height - margin * 0.6);
+  ctx.fillText(watermark, width - margin, height - margin * 0.6 - frame);
   ctx.globalAlpha = 1;
 }

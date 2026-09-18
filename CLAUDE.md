@@ -95,10 +95,14 @@ milkyWay?, constellations?, constellationNames?, art? }) => Promise<HTMLCanvasEl
   arrive last; cached re-renders reorder). Instead it waits for redraws to stay quiet
   (~320ms), applies the dated view via `skyview()`, waits for quiet again, then snapshots.
 - `composePoster(canvas, { starMapCanvas, title, subtitle, watermark, theme, background,
-textColor, mutedColor, scrim?, width, height })` — framed circular-sky poster at
-  `width`×`height`. **`background` = the PAPER colour OUTSIDE the circle** (the sky's own
+textColor, mutedColor, frameColor?, scrim?, width, height })` — framed circular-sky poster
+  at `width`×`height`. **`background` = the PAPER colour OUTSIDE the circle** (the sky's own
   colour is baked into the disc); `textColor`/`mutedColor` come from the paper (white paper
-  → dark text). **`POSTER_SIZES`** (21×30 / 30×40 / 40×50 / 50×70 cm, ~150 DPI, long edge
+  → dark text). **`frameColor` = a border band along the poster edge**, set to the SKY's
+  background colour (`BG_COLORS`) so the border echoes the disc — painted as frame-colour
+  edge-to-edge + the paper inset by `LAYOUT.frameWidth` (26 @ the 1080px reference width);
+  omitted → no frame. It's kept in `posterMetaRef` so a size/paper change recomposes with
+  the colour the sky was actually rendered in. **`POSTER_SIZES`** (21×30 / 30×40 / 40×50 / 50×70 cm, ~150 DPI, long edge
   ≤4096; default 21×30). **`POSTER_PAPERS`** = Deep space / Black / **White** →
   `{bg,text,muted}`; `DEFAULT_POSTER_PAPER_ID='space'`; `posterPaperById(id)`. Size + paper
   are compose-time (recompose from snapshot, no re-render).
@@ -179,8 +183,8 @@ was removed, so a place always carries an IANA timezone.
 UI: `app/page.tsx` → `components/StarMapApp.tsx` (client orchestrator) →
 `InputForm.tsx` (+ `CitySearch.tsx`) + `SkyOptions.tsx` (+ `AboutArt.tsx` attribution
 modal, Free Art License) + `PosterCanvas.tsx`. `app/globals.css` holds theme CSS vars.
-Constellation art is listed first and defaults **on**; Milky Way defaults **off**. **Wallpaper is the
-default tab** (left of Poster). `InputForm` has a customizable **Title** (shown on both
+Constellation art is listed first and defaults **on**; Milky Way defaults **off**. **Poster is the
+default tab** (the Wallpaper tab still sits to its left). `InputForm` has a customizable **Title** (shown on both
 outputs). The **Background** control sets the sky colour _inside_ the circle (both
 outputs); a poster-only **Paper** selector (Deep space / Black / White) sets the colour
 _outside_ the circle and the text colour. On "Render", StarMapApp renders the sky **twice**

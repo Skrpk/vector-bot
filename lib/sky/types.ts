@@ -85,6 +85,11 @@ export interface PosterOptions {
   textColor: string;
   /** Subtitle/watermark colour (hex). */
   mutedColor: string;
+  /**
+   * Border colour (hex) for the band around the poster edge — the sky's own
+   * background colour, so the frame echoes the disc. Omit for no frame.
+   */
+  frameColor?: string;
   /** Draw a fading dark scrim behind the text (used when names are on). */
   scrim?: boolean;
   /** Export pixel width (from the selected PosterSize). */

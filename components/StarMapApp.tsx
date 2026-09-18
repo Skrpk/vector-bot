@@ -59,7 +59,7 @@ export default function StarMapApp() {
   const [status, setStatus] = useState('Оберіть дату й місце, а потім згенеруйте небо.');
   const [loading, setLoading] = useState(false);
   const [canDownload, setCanDownload] = useState(false);
-  const [activeTab, setActiveTab] = useState<OutputTab>('wallpaper');
+  const [activeTab, setActiveTab] = useState<OutputTab>('poster');
   const [posterSizeId, setPosterSizeId] = useState(DEFAULT_POSTER_SIZE_ID);
   const [posterPaperId, setPosterPaperId] = useState(DEFAULT_POSTER_PAPER_ID);
   const [wallpaperSizeId, setWallpaperSizeId] = useState(DEFAULT_WALLPAPER_SIZE_ID);
@@ -89,6 +89,8 @@ export default function StarMapApp() {
     subtitle: string;
     watermark: string;
     scrim: boolean;
+    /** Sky background colour — also the poster's border band. */
+    frameColor: string;
   } | null>(null);
   const wallpaperSkyRef = useRef<HTMLCanvasElement | null>(null);
   const wallpaperMetaRef = useRef<{
@@ -198,6 +200,7 @@ export default function StarMapApp() {
         subtitle: `${payload.displayDate}\n${payload.label}`,
         watermark: WATERMARK,
         scrim: opts.constellationNames,
+        frameColor: bg,
       };
       const size = posterSizeById(posterSizeId);
       const paper = posterPaperById(posterPaperId);
