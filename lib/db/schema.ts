@@ -48,6 +48,10 @@ export const downloads = pgTable('downloads', {
   bgColorId: text('bg_color_id'),
   // Remaining toggles/art-set/paper as a flexible blob (see SkyOptions + paper).
   skyOptions: jsonb('sky_options'),
+  // Telegram's file_id for the PNG we sent. Lets the "Поділитися" button re-offer
+  // the very same file through inline mode without re-uploading it (Telegram
+  // file_ids are reusable by the bot that owns them).
+  fileId: text('file_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

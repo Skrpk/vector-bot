@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { verifyInitData } from '@/lib/telegram/verifyInitData';
 import { checkChannelMembership } from '@/lib/telegram/channelMembership';
 import { recordDownload } from '@/lib/db/queries';
-import { VECTOR_APP_HTML } from '@/lib/telegram/botApi';
+import { SHARE_BUTTON, VECTOR_APP_HTML } from '@/lib/telegram/botApi';
 import { logUserEvent } from '@/lib/telegram/logEvent';
 import type { DownloadMeta } from '@/lib/db/downloadMeta';
 
@@ -79,6 +79,13 @@ export async function POST(req: Request) {
   // Caption is a clickable "VECTOR APP" link back to the bot.
   tgForm.set('caption', VECTOR_APP_HTML);
   tgForm.set('parse_mode', 'HTML');
+  // "Поділитися" opens Telegram's own chat picker (switch_inline_query) and drops
+  // the bot's username into the chosen chat; the webhook then answers the inline
+  // query with this very file by file_id (see SHARE_BUTTON). Needs the DB — that's
+  // where the file_id lives — so only offer it when the DB is configured.
+  if (process.env.DATABASE_URL) {
+    tgForm.set('reply_markup', JSON.stringify({ inline_keyboard: [[SHARE_BUTTON]] }));
+  }
 
   let tgRes: Response;
   try {
@@ -93,6 +100,7 @@ export async function POST(req: Request) {
   const data = (await tgRes.json().catch(() => null)) as {
     ok: boolean;
     description?: string;
+    result?: { document?: { file_id?: string } };
   } | null;
 
   if (!data?.ok) {
@@ -113,7 +121,9 @@ export async function POST(req: Request) {
   // send the user already received. Skipped when the DB isn't configured.
   if (process.env.DATABASE_URL && meta) {
     try {
-      await recordDownload(verified.user, meta);
+      // Store the file_id too, so the "Поділитися" button can re-offer this exact
+      // file inline without a re-upload.
+      await recordDownload(verified.user, meta, data.result?.document?.file_id);
     } catch (err) {
       console.error('[send-to-chat] failed to log download:', err);
     }

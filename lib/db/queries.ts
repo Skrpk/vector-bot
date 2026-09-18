@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, isNotNull, sql } from 'drizzle-orm';
 import { getDb } from './index';
 import {
   apodPosts,
@@ -57,7 +57,8 @@ export async function insertDownload(row: NewDownload): Promise<void> {
  */
 export async function recordDownload(
   user: TelegramUser,
-  meta: DownloadMeta
+  meta: DownloadMeta,
+  fileId?: string
 ): Promise<void> {
   await upsertUser(user);
   const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
@@ -75,7 +76,41 @@ export async function recordDownload(
     bgColorId: str(meta.bgColorId),
     skyOptions:
       meta.skyOptions && typeof meta.skyOptions === 'object' ? meta.skyOptions : null,
+    fileId: str(fileId),
   });
+}
+
+/** One of the user's sent images, re-offerable through inline mode. */
+export interface SharableDownload {
+  fileId: string;
+  title: string | null;
+  placeName: string | null;
+  eventDate: string | null;
+  outputKind: string;
+}
+
+/**
+ * The user's most recent sends that we still hold a Telegram file_id for —
+ * what the "Поділитися" button offers in the chat picker. Scoped to the asking
+ * user (the inline query carries their id), so nobody can list someone else's.
+ */
+export async function getRecentSharableDownloads(
+  userId: number,
+  limit = 10
+): Promise<SharableDownload[]> {
+  const rows = await getDb()
+    .select({
+      fileId: downloads.fileId,
+      title: downloads.title,
+      placeName: downloads.placeName,
+      eventDate: downloads.eventDate,
+      outputKind: downloads.outputKind,
+    })
+    .from(downloads)
+    .where(and(eq(downloads.userId, userId), isNotNull(downloads.fileId)))
+    .orderBy(desc(downloads.createdAt))
+    .limit(limit);
+  return rows.filter((r): r is SharableDownload => Boolean(r.fileId));
 }
 
 /** Toggle the NASA APOD subscription. */

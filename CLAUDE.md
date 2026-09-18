@@ -105,7 +105,9 @@ textColor, mutedColor, frameColor?, scrim?, width, height })` — framed circula
   preview's CSS puts on the canvas; traced by hand since `ctx.roundRect` is too new for
   older iOS webviews); omitted → no frame. It's kept in `posterMetaRef` so a size/paper change recomposes with
   the colour the sky was actually rendered in. **`POSTER_SIZES`** (21×30 / 30×40 / 40×50 / 50×70 cm, ~150 DPI, long edge
-  ≤4096; default 21×30). **`POSTER_PAPERS`** = Deep space / Black / **White** →
+  ≤4096; default 21×30). Labels carry the ISO paper name where one actually matches —
+  **A4** (21×29.7) and **B2** (50×70.7); 30×40 and 40×50 are standard frame sizes with no
+  ISO equivalent (A3 is 29.7×42, A2 is 42×59.4) and stay unlabelled. **`POSTER_PAPERS`** = Deep space / Black / **White** →
   `{bg,text,muted}`; `DEFAULT_POSTER_PAPER_ID='space'`; `posterPaperById(id)`. Size + paper
   are compose-time (recompose from snapshot, no re-render).
 - `composeWallpaper(canvas, { starMapCanvas, title, place, date, watermark, background,
@@ -157,6 +159,18 @@ width, height })` — full-bleed phone wallpaper: same sky as the poster + **whi
   = bot not admin / wrong id) is **fail-open**: the route logs it and still sends.
 - `bootstrap.ts` `openTelegramLink(url)` — opens the channel via the SDK inside Telegram
   (else `window.open`).
+- **Share button (inline mode).** The Bot API has no "forward this message" button, so the
+  **"Поділитися"** button under every sent poster/wallpaper is `SHARE_BUTTON` in `botApi.ts`
+  — an **empty `switch_inline_query`**, which makes Telegram open its own chat picker and
+  type `@<bot> ` into the chosen chat. That fires an `inline_query` update; the webhook
+  answers it with the user's own recent sends as `InlineQueryResultCachedDocument`s
+  (`is_personal`, `cache_time:0`), so tapping one drops that exact PNG into the chat with
+  **no re-upload**. The `file_id` comes from `downloads.file_id`, saved by
+  `/api/send-to-chat` — hence the button is only attached when `DATABASE_URL` is set. With
+  nothing to share the answer carries an `InlineQueryResultsButton` opening the Mini App.
+  **Requires inline mode enabled in @BotFather (`/setinline`)** — otherwise Telegram
+  rejects `answerInlineQuery` with `USER_BOT_INVALID`. Note the ".PDF and .ZIP only" limit
+  applies to `InlineQueryResultDocument` (by URL), **not** the cached variant we use.
 - `logEvent.ts` — **server** `logUserEvent(botToken, user, action)`: mirrors user actions
   into a private audit channel (`LOG_CHANNEL_ID`; bot must be an admin able to post) as
   `User <id> <@name|full name> <action>`. Entirely best-effort (never throws) and a no-op
@@ -274,13 +288,15 @@ both places, so `DATABASE_URL` is the only difference.
   language_code, **`apod_subscribed`** bool + `apod_subscribed_at`, **`blocked`** bool
   (set when a broadcast send fails; cleared on any interaction), timestamps).
   **`downloads`** (uuid PK, `user_id` FK, title, event_date, place_name/lat/lng/timezone,
-  `output_kind`, `size_id`, `bg_color_id`, `sky_options` jsonb, created_at). **`apod_posts`**
+  `output_kind`, `size_id`, `bg_color_id`, `sky_options` jsonb, **`file_id`** (Telegram's id
+  for the PNG we sent — what the inline "Поділитися" button re-offers), created_at).
+  **`apod_posts`**
   (`apod_date` PK, title/explanation/**explanation_uk**/media_type/url/hdurl/thumbnail_url/copyright,
   fetched_at, broadcast_at — the daily-APOD cache; see "NASA APOD daily broadcast").
 - `index.ts` — **lazy** `getDb()` (postgres.js, `max:1`, cached on `globalThis`). Lazy so
   importing it never connects or throws at build time / on DB-less routes; only connects
   on first query. Throws if `DATABASE_URL` is unset.
-- `queries.ts` — `upsertUser`, `insertDownload`, **`recordDownload(user, meta)`** (upsert +
+- `queries.ts` — `upsertUser`, `insertDownload`, **`recordDownload(user, meta, fileId?)`** (upsert +
   insert in one, coercing client meta defensively — the FK `userId` comes from validated
   initData, not the meta); APOD: `setApodSubscription`, `isApodSubscribed`,
   `getApodSubscriberIds`, `saveApodPost`, `getFreshApodPost`, `getApodPostByDate`,

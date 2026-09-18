@@ -14,6 +14,7 @@ interface TgMessage {
   video?: { file_id?: string };
   animation?: { file_id?: string };
   photo?: { file_id?: string }[];
+  document?: { file_id?: string };
 }
 
 /** Pull the sent media's file_id out of a Bot API result message, if any. */
@@ -23,6 +24,7 @@ function fileIdOf(result: unknown): string | undefined {
   if (m?.animation?.file_id) return m.animation.file_id;
   if (Array.isArray(m?.photo) && m.photo.length)
     return m.photo[m.photo.length - 1].file_id;
+  if (m?.document?.file_id) return m.document.file_id;
   return undefined;
 }
 
@@ -91,6 +93,20 @@ export const APOD_SUB = 'apod_sub';
 export const APOD_UNSUB = 'apod_unsub';
 export const APOD_SUB_POST = 'apod_sub_post';
 export const APOD_UNSUB_POST = 'apod_unsub_post';
+
+/**
+ * The "Поділитися" button we hang under every poster/wallpaper we send.
+ *
+ * Telegram has no "forward this message" button in the Bot API, so the share is
+ * done through INLINE MODE: an empty `switch_inline_query` makes Telegram open
+ * its own chat picker and type `@<bot> ` into the chat the user picks. That
+ * fires an `inline_query` update, which the webhook answers with the user's
+ * recent files as cached documents — tapping one sends it to that chat.
+ *
+ * Requires inline mode to be enabled for the bot in BotFather (/setinline);
+ * without it the picker opens but shows no results. See README.
+ */
+export const SHARE_BUTTON = { text: 'Поділитися', switch_inline_query: '' } as const;
 
 /** Clickable "VECTOR APP" link (Telegram HTML) that opens the bot. */
 export const VECTOR_APP_URL = 'https://t.me/vector_2049_bot';

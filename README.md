@@ -52,7 +52,14 @@ curl "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
 
 Check/clear with `getWebhookInfo` / `deleteWebhook`.
 
-**2. Register the command descriptions** (shows them in Telegram's `/` menu):
+**2. Enable inline mode** — REQUIRED for the "Поділитися" button under every
+poster/wallpaper we send. That button is a `switch_inline_query`: it opens Telegram's
+own chat picker, and the bot answers the resulting `inline_query` with the user's recent
+files by `file_id`. Without inline mode Telegram rejects `answerInlineQuery` with
+`USER_BOT_INVALID` and the picker shows an empty list. There is no API for this — do it
+in **@BotFather → /setinline** (any placeholder text works as the inline placeholder).
+
+**3. Register the command descriptions** (shows them in Telegram's `/` menu):
 
 ```bash
 curl "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setMyCommands" \

@@ -5,12 +5,14 @@ import {
   APOD_UNSUB,
   APOD_UNSUB_POST,
   callBot,
+  VECTOR_APP_HTML,
 } from '@/lib/telegram/botApi';
 import { checkChannelMembership } from '@/lib/telegram/channelMembership';
 import { logUserEvent } from '@/lib/telegram/logEvent';
 import { sendApodPost } from '@/lib/telegram/sendApod';
 import {
   getFreshApodPost,
+  getRecentSharableDownloads,
   isApodSubscribed,
   setApodSubscription,
   upsertUser,
@@ -21,8 +23,9 @@ import type { TelegramUser } from '@/lib/telegram/verifyInitData';
 //   /start — welcome + both buttons
 //   /maps  — a web_app button that opens the Mini App
 //   /nasa  — a subscribe/unsubscribe button (reflects current state)
-// and the inline-button taps behind the NASA subscription. Register it with
-// setWebhook (see README).
+// the inline-button taps behind the NASA subscription, and the `inline_query`
+// updates behind the "Поділитися" button on a sent poster/wallpaper. Register it
+// with setWebhook (see README).
 
 export const runtime = 'nodejs';
 
@@ -43,6 +46,7 @@ type InlineKeyboard = InlineButton[][];
 
 interface TgUpdate {
   message?: { chat?: { id?: number }; from?: TelegramUser; text?: string };
+  inline_query?: { id: string; from: TelegramUser; query?: string };
   callback_query?: {
     id: string;
     from: TelegramUser;
@@ -73,6 +77,12 @@ const postButton = (subscribed: boolean): InlineButton =>
     ? { text: 'Відписатися', callback_data: APOD_UNSUB_POST }
     : { text: 'Підписатися', callback_data: APOD_SUB_POST };
 
+/** Label for one shareable file in the inline results list. */
+function shareTitle(title: string | null, outputKind: string): string {
+  const kind = outputKind === 'poster' ? 'Постер' : 'Шпалери';
+  return title ? `${kind} — ${title}` : `${kind} — зоряна карта`;
+}
+
 /** Toggle a subscribe/unsubscribe button to the new state, keeping its family. */
 function toggleButton(btn: InlineButton, subscribed: boolean): InlineButton {
   if (btn.callback_data && POST_CTX.has(btn.callback_data)) return postButton(subscribed);
@@ -101,6 +111,51 @@ export async function POST(req: Request) {
   const hasDb = Boolean(process.env.DATABASE_URL);
 
   try {
+    // --- Inline mode (the "Поділитися" button on a sent poster/wallpaper) -------
+    // The button is an empty switch_inline_query, so Telegram opens its chat
+    // picker and lands here. We answer with the user's own recent files as cached
+    // documents; tapping one sends that exact PNG into the chosen chat, with no
+    // re-upload (Telegram file_ids are reusable by the bot that owns them).
+    const iq = update.inline_query;
+    if (iq) {
+      const rows = hasDb
+        ? await getRecentSharableDownloads(iq.from.id).catch((err) => {
+            console.error('[webhook] inline share lookup failed:', err);
+            return [];
+          })
+        : [];
+      const answered = await callBot(botToken, 'answerInlineQuery', {
+        inline_query_id: iq.id,
+        results: rows.map((row, i) => ({
+          type: 'document',
+          id: String(i),
+          title: shareTitle(row.title, row.outputKind),
+          description: [row.placeName, row.eventDate].filter(Boolean).join(' · '),
+          document_file_id: row.fileId,
+          caption: VECTOR_APP_HTML,
+          parse_mode: 'HTML',
+        })),
+        // Personal results, never cached: the list changes with every new send.
+        is_personal: true,
+        cache_time: 0,
+        // Nothing to share yet -> point them at the generator instead of an
+        // empty list.
+        ...(rows.length
+          ? {}
+          : {
+              button: {
+                text: 'Створити зоряну карту',
+                web_app: { url: webAppUrl },
+              },
+            }),
+      });
+      if (!answered.ok) {
+        // Most likely inline mode is off in BotFather, or the query expired.
+        console.error('[webhook] answerInlineQuery failed:', answered.description);
+      }
+      return NextResponse.json({ ok: true });
+    }
+
     // --- Commands --------------------------------------------------------------
     const msg = update.message;
     // Command text may carry a bot suffix (/nasa@MyBot) or args; match the verb.

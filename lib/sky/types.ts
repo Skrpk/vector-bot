@@ -62,8 +62,10 @@ export interface RenderOptions extends Partial<SkyOptions> {
 export interface PosterSize {
   /** Stable id, e.g. "40x50". */
   id: string;
-  /** Display label, e.g. "40×50 cm". */
+  /** Display label, e.g. "21×30 cm · A4". */
   label: string;
+  /** ISO paper name when one matches this size (A4, B2); absent otherwise. */
+  format?: string;
   /** Physical size in centimetres [width, height]. */
   cm: [number, number];
   /** Export pixel width. */

@@ -9,21 +9,34 @@ import type { PosterOptions, PosterSize } from './types';
 const DPI = 150;
 const MAX_LONG_EDGE = 4096; // keep canvas mobile-safe (iOS/Telegram webview)
 
-function sizeFromCm(id: string, wCm: number, hCm: number): PosterSize {
+/**
+ * `format` is the ISO paper name, appended to the label so people can match the
+ * poster to a frame they know. Only two of our four sizes have one: A4 is
+ * 21×29.7 cm and B2 is 50×70.7 cm, both within a few mm. 30×40 and 40×50 are
+ * standard frame sizes with NO ISO equivalent (A3 is 29.7×42, A2 is 42×59.4),
+ * so they stay unlabelled rather than carry a name that's centimetres off.
+ */
+function sizeFromCm(
+  id: string,
+  wCm: number,
+  hCm: number,
+  format?: string
+): PosterSize {
   let w = Math.round((wCm / 2.54) * DPI);
   let h = Math.round((hCm / 2.54) * DPI);
   if (h > MAX_LONG_EDGE) {
     w = Math.round(w * (MAX_LONG_EDGE / h));
     h = MAX_LONG_EDGE;
   }
-  return { id, label: `${wCm}×${hCm} cm`, cm: [wCm, hCm], w, h };
+  const label = format ? `${wCm}×${hCm} cm · ${format}` : `${wCm}×${hCm} cm`;
+  return { id, label, cm: [wCm, hCm], w, h, format };
 }
 
 export const POSTER_SIZES: readonly PosterSize[] = [
-  sizeFromCm('21x30', 21, 30),
+  sizeFromCm('21x30', 21, 30, 'A4'),
   sizeFromCm('30x40', 30, 40),
   sizeFromCm('40x50', 40, 50),
-  sizeFromCm('50x70', 50, 70),
+  sizeFromCm('50x70', 50, 70, 'B2'),
 ] as const;
 
 /** Default poster size when the app loads. */
