@@ -100,8 +100,10 @@ textColor, mutedColor, frameColor?, scrim?, width, height })` — framed circula
   colour is baked into the disc); `textColor`/`mutedColor` come from the paper (white paper
   → dark text). **`frameColor` = a border band along the poster edge**, set to the SKY's
   background colour (`BG_COLORS`) so the border echoes the disc — painted as frame-colour
-  edge-to-edge + the paper inset by `LAYOUT.frameWidth` (26 @ the 1080px reference width);
-  omitted → no frame. It's kept in `posterMetaRef` so a size/paper change recomposes with
+  edge-to-edge + the paper inset by `LAYOUT.frameWidth` (13 @ the 1080px reference width) as
+  a ROUNDED rect (`LAYOUT.paperRadius` 23, concentric with the 14px `border-radius` the
+  preview's CSS puts on the canvas; traced by hand since `ctx.roundRect` is too new for
+  older iOS webviews); omitted → no frame. It's kept in `posterMetaRef` so a size/paper change recomposes with
   the colour the sky was actually rendered in. **`POSTER_SIZES`** (21×30 / 30×40 / 40×50 / 50×70 cm, ~150 DPI, long edge
   ≤4096; default 21×30). **`POSTER_PAPERS`** = Deep space / Black / **White** →
   `{bg,text,muted}`; `DEFAULT_POSTER_PAPER_ID='space'`; `posterPaperById(id)`. Size + paper

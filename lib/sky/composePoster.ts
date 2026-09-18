@@ -68,7 +68,13 @@ const LAYOUT = {
   skyCenterYRatio: 0.42,
   ringWidth: 3,
   /** Border band along the poster edge (see `frameColor`). */
-  frameWidth: 26,
+  frameWidth: 13,
+  /**
+   * Corner radius of the paper inside the band. Chosen to sit concentric with
+   * the 14px radius the preview's CSS rounds the canvas to (14px at the 420px
+   * preview width ≈ 36 here, minus the band).
+   */
+  paperRadius: 23,
   titlePx: 62,
   subtitlePx: 30,
   watermarkPx: 26,
@@ -77,6 +83,26 @@ const LAYOUT = {
   lineGap: 42,
   font: "'Helvetica Neue', Arial, sans-serif",
 } as const;
+
+/** Trace a rounded rectangle. Hand-rolled: ctx.roundRect() is too new for the
+ * older iOS webviews Telegram can run in. */
+function roundedRectPath(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number
+): void {
+  const radius = Math.max(0, Math.min(r, w / 2, h / 2));
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.arcTo(x + w, y, x + w, y + h, radius);
+  ctx.arcTo(x + w, y + h, x, y + h, radius);
+  ctx.arcTo(x, y + h, x, y, radius);
+  ctx.arcTo(x, y, x + w, y, radius);
+  ctx.closePath();
+}
 
 /**
  * Draw the composed poster (sky + title + subtitle + watermark) onto `canvas` at
@@ -109,15 +135,26 @@ export function composePoster(canvas: HTMLCanvasElement, opts: PosterOptions): v
 
   // Frame + paper. The frame is a band along the poster edge in the SKY's own
   // background colour, so the border echoes the disc; the paper (the colour
-  // outside the circle) fills the area inside it. Painted as two rects — frame
-  // colour edge-to-edge, then the paper inset — so it works on any paper.
+  // outside the circle) fills the area inside it. Painted as frame colour
+  // edge-to-edge, then the paper inset as a ROUNDED rect — concentric with the
+  // rounded corners the preview shows — so it works on any paper.
   const frame = frameColor ? LAYOUT.frameWidth * s : 0;
   if (frameColor) {
     ctx.fillStyle = frameColor;
     ctx.fillRect(0, 0, width, height);
+    ctx.fillStyle = background;
+    roundedRectPath(
+      ctx,
+      frame,
+      frame,
+      width - frame * 2,
+      height - frame * 2,
+      LAYOUT.paperRadius * s
+    );
+    ctx.fill();
+  } else {
+    ctx.fillRect(0, 0, width, height);
   }
-  ctx.fillStyle = background;
-  ctx.fillRect(frame, frame, width - frame * 2, height - frame * 2);
 
   // Sky circle geometry
   const diameter = width * LAYOUT.skyDiameterRatio;
