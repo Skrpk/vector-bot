@@ -25,6 +25,20 @@ interface ApodRaw {
   copyright?: string;
 }
 
+/**
+ * APOD's `copyright` is free-form and often carries a SECOND credit block for the
+ * article text, e.g. "Javier Castro\n\nText:\nKeighley Rockcliffe  \n(NASA\nGSFC…)".
+ * Rendered verbatim that becomes a five-line credit dump at the top of the post.
+ * Keep only the image credit: cut at a "Text:" marker, flatten whitespace, cap it.
+ */
+function cleanCopyright(raw?: string): string | null {
+  if (!raw) return null;
+  const imageCredit = raw.split(/\bText\s*:/i)[0];
+  const flat = imageCredit.replace(/\s+/g, ' ').trim();
+  if (!flat) return null;
+  return flat.length > 80 ? flat.slice(0, 79).trimEnd() + '…' : flat;
+}
+
 /** Fetch today's APOD (or a specific `date`). Returns null on any failure. */
 export async function fetchApod(date?: string): Promise<ApodData | null> {
   const key = process.env.NASA_API_KEY || 'DEMO_KEY';
@@ -54,6 +68,6 @@ export async function fetchApod(date?: string): Promise<ApodData | null> {
     hdurl: raw.hdurl ?? null,
     // NASA returns "" for non-video thumbs; normalize to null.
     thumbnailUrl: raw.thumbnail_url || null,
-    copyright: raw.copyright?.trim() || null,
+    copyright: cleanCopyright(raw.copyright),
   };
 }
