@@ -55,6 +55,17 @@ function isPlaceholderMedia(url?: string): boolean {
   return /\/wp-content\//i.test(url);
 }
 
+/**
+ * The same breakage also serves APOD's standing site blurb ("Discover the
+ * cosmos! Each day a different image…") in place of the day's real text — for
+ * most dates, including ones whose real write-up we have fetched before. Catch
+ * it too, so a half-fix that restores the image but not the text can't ship a
+ * post whose description is the site's own boilerplate.
+ */
+function isBoilerplateExplanation(explanation: string): boolean {
+  return /^\s*Discover the cosmos!/i.test(explanation);
+}
+
 /** Today's date in Kyiv — the timezone the broadcast runs on. */
 function kyivToday(): string {
   return new Intl.DateTimeFormat('en-CA', {
@@ -86,6 +97,10 @@ async function fetchApodOnce(date?: string): Promise<ApodData | null> {
   if (!raw?.date || !raw.title || !raw.explanation) return null;
   if (isPlaceholderMedia(raw.url) || isPlaceholderMedia(raw.hdurl)) {
     console.warn(`[apod] ${raw.date}: placeholder media from NASA, treating as no post`);
+    return null;
+  }
+  if (isBoilerplateExplanation(raw.explanation)) {
+    console.warn(`[apod] ${raw.date}: site boilerplate instead of a description`);
     return null;
   }
 
