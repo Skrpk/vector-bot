@@ -198,6 +198,18 @@ export async function getApodPostByDate(apodDate: string): Promise<ApodPost | nu
  * this call won the race (so the caller should send), false if a prior run
  * already broadcast it. Guards against a double send if the cron fires twice.
  */
+/**
+ * Give the claim back after a broadcast failed before reaching the subscribers.
+ * Without this, a crash between the claim and the send loop marks the date as
+ * broadcast forever and that day's post can never go out.
+ */
+export async function releaseApodBroadcast(apodDate: string): Promise<void> {
+  await getDb()
+    .update(apodPosts)
+    .set({ broadcastAt: null })
+    .where(eq(apodPosts.apodDate, apodDate));
+}
+
 export async function claimApodBroadcast(apodDate: string): Promise<boolean> {
   const rows = await getDb()
     .update(apodPosts)

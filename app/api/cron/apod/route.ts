@@ -8,6 +8,7 @@ import {
   claimApodBroadcast,
   getApodPostByDate,
   getApodSubscriberIds,
+  releaseApodBroadcast,
   saveApodPost,
   setBlocked,
 } from '@/lib/db/queries';
@@ -113,6 +114,7 @@ export async function GET(req: Request) {
 
   const post = await getApodPostByDate(apod.date);
   if (!post) {
+    await releaseApodBroadcast(apod.date).catch(() => {});
     return NextResponse.json(
       { ok: false, error: 'post not found after save' },
       { status: 500 }
@@ -121,7 +123,21 @@ export async function GET(req: Request) {
 
   // 3. Broadcast to every subscriber. A shared media cache means a big video is
   // uploaded once and re-sent to everyone else by file_id (no per-user re-upload).
-  const subscribers = await getApodSubscriberIds();
+  let subscribers: number[];
+  try {
+    subscribers = await getApodSubscriberIds();
+  } catch (err) {
+    // Typically a schema drift (an unapplied migration). The claim is already
+    // taken at this point, so hand it back — otherwise this date is marked
+    // broadcast forever and today's photo can never be sent.
+    await releaseApodBroadcast(apod.date).catch(() => {});
+    console.error('[cron/apod] could not load subscribers:', err);
+    return NextResponse.json(
+      { ok: false, date: apod.date, error: `subscriber lookup failed: ${String(err)}` },
+      { status: 500 }
+    );
+  }
+
   const cache: MediaCache = {};
   let sent = 0;
   let failed = 0;

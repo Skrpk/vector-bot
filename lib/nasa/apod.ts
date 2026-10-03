@@ -39,8 +39,34 @@ function cleanCopyright(raw?: string): string | null {
   return flat.length > 80 ? flat.slice(0, 79).trimEnd() + '…' : flat;
 }
 
-/** Fetch today's APOD (or a specific `date`). Returns null on any failure. */
-export async function fetchApod(date?: string): Promise<ApodData | null> {
+/**
+ * During NASA's move of the APOD site the API started answering with the new
+ * site's CHROME instead of the picture: HTTP 200, a real `explanation`, but
+ * `title: "NASA Science"` and `url`/`hdurl` pointing at the site logo
+ * (`…/wp-content/themes/nasa-child/assets/images/nasa-logo@2x.png`). Broadcasting
+ * that would send every subscriber a NASA logo, so treat it as no data at all.
+ * Keyed on `/wp-content/` — the WordPress asset path of the site's own chrome,
+ * never where an APOD picture lives (those sit under apod.nasa.gov/apod/image/).
+ * Matching the title, or the word "nasa-logo", would instead risk rejecting a
+ * legitimate picture that merely happens to be named that.
+ */
+function isPlaceholderMedia(url?: string): boolean {
+  if (!url) return false;
+  return /\/wp-content\//i.test(url);
+}
+
+/** Today's date in Kyiv — the timezone the broadcast runs on. */
+function kyivToday(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Kyiv',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
+/** One request. Returns null on transport error, non-2xx, or an unusable body. */
+async function fetchApodOnce(date?: string): Promise<ApodData | null> {
   const key = process.env.NASA_API_KEY || 'DEMO_KEY';
   const params = new URLSearchParams({ api_key: key, thumbs: 'true' });
   if (date) params.set('date', date);
@@ -58,6 +84,10 @@ export async function fetchApod(date?: string): Promise<ApodData | null> {
 
   const raw = (await res.json().catch(() => null)) as ApodRaw | null;
   if (!raw?.date || !raw.title || !raw.explanation) return null;
+  if (isPlaceholderMedia(raw.url) || isPlaceholderMedia(raw.hdurl)) {
+    console.warn(`[apod] ${raw.date}: placeholder media from NASA, treating as no post`);
+    return null;
+  }
 
   return {
     date: raw.date,
@@ -70,4 +100,16 @@ export async function fetchApod(date?: string): Promise<ApodData | null> {
     thumbnailUrl: raw.thumbnail_url || null,
     copyright: cleanCopyright(raw.copyright),
   };
+}
+
+/**
+ * Fetch today's APOD (or a specific `date`). Returns null on any failure.
+ *
+ * The undated "give me today" call is the flaky one — it has been answering 500
+ * outright while the same request WITH an explicit `date` still works, so fall
+ * back to asking for today's Kyiv date explicitly before giving up.
+ */
+export async function fetchApod(date?: string): Promise<ApodData | null> {
+  if (date) return fetchApodOnce(date);
+  return (await fetchApodOnce()) ?? (await fetchApodOnce(kyivToday()));
 }
