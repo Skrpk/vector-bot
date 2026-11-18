@@ -325,6 +325,26 @@ Telegram.
 
 Subscribers get NASA's **Astronomy Picture of the Day** in their chat, once a day.
 
+- **Two sources, api.nasa.gov first.** `api.nasa.gov/planetary/apod` broke when NASA
+  moved APOD to science.nasa.gov (Oct 2026): the undated call answers **HTTP 500**, a
+  dated one answers 200 with the new site's chrome (title `NASA Science`, the site logo
+  under `/wp-content/` in place of the picture, and often APOD's standing "Discover the
+  cosmos!" blurb as the description). `fetchApod` therefore tries, in order: the undated
+  api.nasa.gov call, the same call with **today's Kyiv date**, then
+  **`lib/nasa/apodSite.ts`**. api.nasa.gov stays first on purpose, so everything returns
+  to the official source by itself if NASA fixes it.
+- **`lib/nasa/apodSite.ts`** — the fallback: the WordPress JSON feed behind
+  science.nasa.gov/apod (`/wp-json/wp/v2/apod-basic` = latest 25 newest-first,
+  `/wp-json/wp/v2/apod-basic/YYMMDD` = one day). Real JSON, **not HTML scraping**;
+  robots.txt allows it. Normalised to the same `ApodData`: the feed's `explanation` is
+  HTML framed by "Explanation:" / "Tomorrow's picture:" markers (both stripped, tags and
+  entities decoded), its `url` is the ARTICLE page while `hdurl` is the image, and a
+  **video day carries no video file at all** — only a .jpeg still, so it maps to
+  `url`=article + `thumbnailUrl`=still, which is exactly the sender's existing
+  "thumbnail + watch link" path. `ApodData` + `cleanCopyright` live in
+  **`lib/nasa/apodShared.ts`** so neither source imports the other. NASA media is public
+  domain but APOD pictures are frequently third-party work by individual
+  astrophotographers, so the `copyright` credit is always carried through.
 - **`lib/nasa/apod.ts`** — `fetchApod(date?)` hits `api.nasa.gov/planetary/apod`
   (`NASA_API_KEY` or `DEMO_KEY`, `thumbs=true`), normalizes to `ApodData` (image has
   `hdurl`; video has `url` + maybe `thumbnail_url`; `copyright` optional). Returns null on
@@ -332,7 +352,14 @@ Subscribers get NASA's **Astronomy Picture of the Day** in their chat, once a da
 - **`lib/openai/translateApod.ts`** — `translateApodToUk(title, explanation)`: one OpenAI
   Chat Completions call (`OPENAI_API_KEY`, `OPENAI_MODEL` default `gpt-4o-mini`, plain
   `fetch`, no SDK) rewriting the English description into an engaging **Ukrainian** blurb
-  (4–5 sentences, main facts only, light `<b>/<i>` formatting, ≤800 chars). Output is run
+  (4–5 sentences, main facts only, light `<b>/<i>` formatting, ≤800 chars). The prompt
+  also requires **2–3 paragraphs separated by a blank line** and **an emoji per
+  paragraph**, and **bans the em dash** (`—`). The ban is additionally **enforced in
+  code** (`removeEmDashes`), because models slip back into em dashes however firmly
+  they're told not to: a spaced one becomes a comma (appositive/parenthetical, which
+  reads naturally in Ukrainian), one between digits stays a range (`10-20`), and one
+  hugging a line break is dropped. The prompt text itself was stripped of em dashes too,
+  so it can't prime the model toward them. Output is run
   through `sanitizeTelegramHtml` (escape-all, re-allow only `<b><i><u><s>`). Returns null on
   any failure → the sender falls back to English. Called **once/day** in the cron.
 - **Cache**: `apod_posts` table (see Database), one row per APOD date, storing both

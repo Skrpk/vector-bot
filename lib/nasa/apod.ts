@@ -2,17 +2,13 @@
 // Docs: https://api.nasa.gov/ (planetary/apod). Keyless with DEMO_KEY, but that
 // is heavily rate-limited (~50/day) — set NASA_API_KEY for real use. We only
 // call it once per day (the cron), so usage stays tiny either way.
+//
+// This API has been broken since NASA started moving APOD to science.nasa.gov,
+// so `fetchApod` falls back to that site's own feed — see ./apodSite.
 
-export interface ApodData {
-  date: string; // YYYY-MM-DD
-  title: string;
-  explanation: string;
-  mediaType: string; // 'image' | 'video' | ...
-  url: string | null;
-  hdurl: string | null;
-  thumbnailUrl: string | null;
-  copyright: string | null;
-}
+import { cleanCopyright, type ApodData } from './apodShared';
+import { fetchApodFromSite } from './apodSite';
+export type { ApodData };
 
 interface ApodRaw {
   date?: string;
@@ -25,19 +21,6 @@ interface ApodRaw {
   copyright?: string;
 }
 
-/**
- * APOD's `copyright` is free-form and often carries a SECOND credit block for the
- * article text, e.g. "Javier Castro\n\nText:\nKeighley Rockcliffe  \n(NASA\nGSFC…)".
- * Rendered verbatim that becomes a five-line credit dump at the top of the post.
- * Keep only the image credit: cut at a "Text:" marker, flatten whitespace, cap it.
- */
-function cleanCopyright(raw?: string): string | null {
-  if (!raw) return null;
-  const imageCredit = raw.split(/\bText\s*:/i)[0];
-  const flat = imageCredit.replace(/\s+/g, ' ').trim();
-  if (!flat) return null;
-  return flat.length > 80 ? flat.slice(0, 79).trimEnd() + '…' : flat;
-}
 
 /**
  * During NASA's move of the APOD site the API started answering with the new
@@ -120,11 +103,16 @@ async function fetchApodOnce(date?: string): Promise<ApodData | null> {
 /**
  * Fetch today's APOD (or a specific `date`). Returns null on any failure.
  *
- * The undated "give me today" call is the flaky one — it has been answering 500
- * outright while the same request WITH an explicit `date` still works, so fall
- * back to asking for today's Kyiv date explicitly before giving up.
+ * Tried in order: the undated api.nasa.gov call (the one the job wants), the same
+ * call with today's Kyiv date (the undated one answers 500 outright), and finally
+ * science.nasa.gov's own feed. api.nasa.gov stays FIRST so everything returns to
+ * the official source by itself the day NASA fixes it — no code change needed.
  */
 export async function fetchApod(date?: string): Promise<ApodData | null> {
-  if (date) return fetchApodOnce(date);
-  return (await fetchApodOnce()) ?? (await fetchApodOnce(kyivToday()));
+  if (date) return (await fetchApodOnce(date)) ?? (await fetchApodFromSite(date));
+  return (
+    (await fetchApodOnce()) ??
+    (await fetchApodOnce(kyivToday())) ??
+    (await fetchApodFromSite())
+  );
 }
