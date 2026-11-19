@@ -2,6 +2,8 @@
 // site). Kept in its own module so neither source has to import the other.
 
 export interface ApodData {
+  /** Which source answered — reported by the cron so a silent day is diagnosable. */
+  source: 'api' | 'site';
   date: string; // YYYY-MM-DD
   title: string;
   explanation: string;

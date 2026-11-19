@@ -96,6 +96,7 @@ function normalise(raw: ApodSiteRaw): ApodData | null {
   const isVideo = mediaType === 'video';
 
   return {
+    source: 'site',
     date: raw.date,
     title: htmlToText(raw.title),
     explanation,

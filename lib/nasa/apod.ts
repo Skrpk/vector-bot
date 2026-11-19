@@ -88,6 +88,7 @@ async function fetchApodOnce(date?: string): Promise<ApodData | null> {
   }
 
   return {
+    source: 'api',
     date: raw.date,
     title: raw.title,
     explanation: raw.explanation,

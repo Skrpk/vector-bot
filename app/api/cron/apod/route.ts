@@ -109,7 +109,12 @@ export async function GET(req: Request) {
   // 2. Claim the broadcast — bail if a prior run already sent this date.
   const claimed = await claimApodBroadcast(apod.date);
   if (!claimed) {
-    return NextResponse.json({ ok: true, date: apod.date, skipped: 'already broadcast' });
+    return NextResponse.json({
+      ok: true,
+      date: apod.date,
+      source: apod.source,
+      skipped: 'already broadcast',
+    });
   }
 
   const post = await getApodPostByDate(apod.date);
@@ -183,6 +188,9 @@ export async function GET(req: Request) {
   return NextResponse.json({
     ok: true,
     date: apod.date,
+    // 'api' = api.nasa.gov answered; 'site' = we fell back to science.nasa.gov.
+    source: apod.source,
+    title: apod.title,
     subscribers: subscribers.length,
     sent,
     failed,
