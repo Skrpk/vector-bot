@@ -137,6 +137,7 @@ export async function GET(req: Request) {
       date: apod.date,
       source: apod.source,
       title: apod.title,
+      translated: Boolean(explanationUk),
       mediaType: apod.mediaType,
       mediaUrl: apod.url,
       alreadyBroadcast: Boolean((await getApodPostByDate(apod.date))?.broadcastAt),
@@ -240,7 +241,9 @@ export async function GET(req: Request) {
   // Vercel Cron throws the response away, so the summary has to reach the logs
   // too — otherwise a day where nobody received anything leaves no trace.
   console.log(
-    `[cron/apod] ${apod.date} via ${apod.source}: ${subscribers.length} subscribers, ` +
+    `[cron/apod] ${apod.date} via ${apod.source}` +
+      `${explanationUk ? '' : ' (NOT translated, English fallback)'}: ` +
+      `${subscribers.length} subscribers, ` +
       `sent ${sent}, failed ${failed}, blocked ${blocked}, reminded ${reminded}`
   );
 
@@ -250,6 +253,9 @@ export async function GET(req: Request) {
     // 'api' = api.nasa.gov answered; 'site' = we fell back to science.nasa.gov.
     source: apod.source,
     title: apod.title,
+    // false = OpenAI didn't answer (bad key, quota, model) and the post went out
+    // in English. The send still succeeds, so it's otherwise invisible.
+    translated: Boolean(explanationUk),
     subscribers: subscribers.length,
     sent,
     failed,
