@@ -63,7 +63,13 @@ export async function GET(req: Request) {
   // the job is scheduled at both 09:00 and 10:00 UTC and we gate on the real Kyiv
   // hour here — exactly one of the two lands on 12:00 Kyiv year-round (EET/EEST).
   // `?force=1` bypasses the gate for manual testing.
-  const force = new URL(req.url).searchParams.get('force') === '1';
+  const params = new URL(req.url).searchParams;
+  const force = params.get('force') === '1';
+  // `?dry=1` inspects the broadcast WITHOUT sending anything and without taking
+  // the claim: who would receive today's post, and who the channel gate would
+  // turn away. The only way to see that after the fact, since the real run hands
+  // its summary to Vercel Cron, which discards it.
+  const dry = params.get('dry') === '1';
   const kyivHour = Number(
     new Intl.DateTimeFormat('en-GB', {
       timeZone: 'Europe/Kyiv',
@@ -105,6 +111,41 @@ export async function GET(req: Request) {
     thumbnailUrl: apod.thumbnailUrl,
     copyright: apod.copyright,
   });
+
+  if (dry) {
+    let ids: number[];
+    try {
+      ids = await getApodSubscriberIds();
+    } catch (err) {
+      return NextResponse.json(
+        { ok: false, error: `subscriber lookup failed: ${String(err)}` },
+        { status: 500 }
+      );
+    }
+    const members: number[] = [];
+    const notMembers: number[] = [];
+    const gateErrors: string[] = [];
+    for (const chatId of ids) {
+      const m = await checkChannelMembership(botToken, chatId);
+      if ('error' in m) gateErrors.push(`${chatId}: ${m.error}`);
+      else if ('subscribed' in m && m.subscribed === false) notMembers.push(chatId);
+      else members.push(chatId);
+    }
+    return NextResponse.json({
+      ok: true,
+      dry: true,
+      date: apod.date,
+      source: apod.source,
+      title: apod.title,
+      mediaType: apod.mediaType,
+      mediaUrl: apod.url,
+      alreadyBroadcast: Boolean((await getApodPostByDate(apod.date))?.broadcastAt),
+      subscribers: ids.length,
+      wouldReceivePost: members.length,
+      wouldGetRejoinNudge: notMembers.length,
+      gateErrors,
+    });
+  }
 
   // 2. Claim the broadcast — bail if a prior run already sent this date.
   const claimed = await claimApodBroadcast(apod.date);
@@ -175,6 +216,7 @@ export async function GET(req: Request) {
       sent++;
     } else {
       failed++;
+      console.error(`[cron/apod] send to ${chatId} failed:`, result.description);
       if (result.description && BLOCKED_ERR.test(result.description)) {
         // Blocked/deactivated — skip them going forward (they stay subscribed;
         // interacting with the bot clears `blocked` via upsertUser).
@@ -184,6 +226,13 @@ export async function GET(req: Request) {
     }
     if (SEND_GAP_MS) await sleep(SEND_GAP_MS);
   }
+
+  // Vercel Cron throws the response away, so the summary has to reach the logs
+  // too — otherwise a day where nobody received anything leaves no trace.
+  console.log(
+    `[cron/apod] ${apod.date} via ${apod.source}: ${subscribers.length} subscribers, ` +
+      `sent ${sent}, failed ${failed}, blocked ${blocked}, reminded ${reminded}`
+  );
 
   return NextResponse.json({
     ok: true,
