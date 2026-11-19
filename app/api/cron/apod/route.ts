@@ -138,6 +138,9 @@ export async function GET(req: Request) {
       source: apod.source,
       title: apod.title,
       translated: Boolean(explanationUk),
+      // The actual rewrite, so the result can be read without sending it to
+      // anyone: paragraph breaks, emoji and the em-dash ban are all checkable here.
+      explanationUk,
       mediaType: apod.mediaType,
       mediaUrl: apod.url,
       alreadyBroadcast: Boolean((await getApodPostByDate(apod.date))?.broadcastAt),
