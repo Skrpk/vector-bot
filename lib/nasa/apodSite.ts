@@ -25,6 +25,33 @@ import { cleanCopyright, type ApodData } from './apodShared';
 
 const FEED = 'https://science.nasa.gov/wp-json/wp/v2/apod-basic';
 
+/**
+ * Telegram refuses a photo whose width PLUS height exceeds 10000
+ * ("The photo's width and height must not exceed 10000 in total" — sendPhoto),
+ * and the feed hands out renditions as large as 6000x4800, i.e. 10800. Those are
+ * well under the 5 MB byte limit, so size alone doesn't catch them.
+ *
+ * The URLs are CDN resize endpoints that take `w`, so ask for a bounded width and
+ * drop `h` to let the native ratio decide it. 2000 leaves room even for a tall
+ * frame (a 1:4 crop still only reaches 10000) while staying sharp in Telegram.
+ */
+const MAX_MEDIA_WIDTH = 2000;
+
+function boundMediaSize(url: string | null): string | null {
+  if (!url) return null;
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return url;
+  }
+  // Only the resize endpoint takes these; fixed renditions are already small.
+  if (!u.searchParams.has('w')) return url;
+  u.searchParams.set('w', String(MAX_MEDIA_WIDTH));
+  u.searchParams.delete('h');
+  return u.toString();
+}
+
 interface ApodSiteRaw {
   date?: string;
   title?: string;
@@ -91,7 +118,7 @@ function normalise(raw: ApodSiteRaw): ApodData | null {
   if (!explanation) return null;
 
   const mediaType = raw.media_type ?? 'image';
-  const media = raw.hdurl ?? null;
+  const media = boundMediaSize(raw.hdurl ?? null);
   const article = raw.permalink ?? raw.url ?? null;
   const isVideo = mediaType === 'video';
 

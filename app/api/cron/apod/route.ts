@@ -227,6 +227,16 @@ export async function GET(req: Request) {
     if (SEND_GAP_MS) await sleep(SEND_GAP_MS);
   }
 
+  // A run that reached NOBODY did not happen: hand the claim back so the next
+  // run (or a manual trigger) can retry the day. Only when every single send
+  // errored — zero subscribers, or a list that all legitimately got the rejoin
+  // nudge, are real outcomes and must not loop.
+  const reachedNobody = subscribers.length > 0 && sent === 0 && reminded === 0;
+  if (reachedNobody) {
+    await releaseApodBroadcast(apod.date).catch(() => {});
+    console.error(`[cron/apod] ${apod.date}: reached nobody, claim released for retry`);
+  }
+
   // Vercel Cron throws the response away, so the summary has to reach the logs
   // too — otherwise a day where nobody received anything leaves no trace.
   console.log(
@@ -245,5 +255,6 @@ export async function GET(req: Request) {
     failed,
     blocked,
     reminded,
+    ...(reachedNobody ? { retryable: true } : {}),
   });
 }
